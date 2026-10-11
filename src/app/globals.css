@@ -105,7 +105,7 @@ input[type="url"] {
   overflow: hidden;
 }
 
-.list li + li {
+.list > li + li {
   border-top: 1px solid var(--line);
 }
 
@@ -146,8 +146,47 @@ summary::-webkit-details-marker {
   font-variant-numeric: tabular-nums;
 }
 
+.spark {
+  flex: none;
+  color: var(--muted);
+}
+
+.down {
+  color: var(--down);
+}
+
+.up {
+  color: var(--up);
+}
+
+.delta {
+  display: block;
+  font-size: 12px;
+}
+
 .more {
   padding: 0 16px 14px;
+}
+
+.history {
+  max-height: 180px;
+  margin-bottom: 8px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.history li {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  color: var(--muted);
+}
+
+.history li:first-child {
+  color: var(--text);
 }
 
 .actions {

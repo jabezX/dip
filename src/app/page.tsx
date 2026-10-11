@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatPrice } from "@/lib/items";
 import { addItem, removeItem, useItems } from "@/lib/store";
+import { Delta, Sparkline } from "./sparkline";
 
 const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -61,11 +62,21 @@ export default function Home() {
                     <span className="title">{item.title}</span>
                     <span className="sub">{new URL(item.url).hostname.replace(/^www\./, "")}</span>
                   </span>
+                  <Sparkline points={item.history} />
                   <span className="price">
                     {formatPrice(item.history[item.history.length - 1].p, item.currency)}
+                    <Delta points={item.history} />
                   </span>
                 </summary>
                 <div className="more">
+                  <ol className="history">
+                    {[...item.history].reverse().map((pt) => (
+                      <li key={pt.t}>
+                        <span>{when(pt.t)}</span>
+                        <span>{formatPrice(pt.p, item.currency)}</span>
+                      </li>
+                    ))}
+                  </ol>
                   <p className="sub">Checked {when(item.checkedAt)}</p>
                   <div className="actions">
                     <a href={item.url} target="_blank" rel="noreferrer">
