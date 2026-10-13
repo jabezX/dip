@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { newItem, type Found, type Item } from "./items";
+import { newItem, record, type Found, type Item } from "./items";
 
 // ponytail: one localStorage key holds everything. Fine for hundreds of
 // items; move to IndexedDB if someone tracks thousands.
@@ -54,6 +54,31 @@ export async function addItem(url: string) {
   if (getItems().some((i) => i.url === url)) throw new Error("You're already watching that link");
   const item = newItem(url, await lookup(url));
   setItems([item, ...getItems()]);
+}
+
+const STALE = 30 * 60_000;
+let checking = false;
+
+/** Re-check prices, one shop request at a time. */
+export async function checkItems(onlyStale = false) {
+  if (checking || !navigator.onLine) return;
+  checking = true;
+  try {
+    for (const { id, url, checkedAt } of getItems()) {
+      if (onlyStale && Date.now() - checkedAt < STALE) continue;
+      const found = await lookup(url).catch((e: Error) => e);
+      // re-read: the list may have changed while we were waiting
+      setItems(
+        getItems().map((i) => {
+          if (i.id !== id) return i;
+          if (found instanceof Error) return { ...i, error: found.message, checkedAt: Date.now() };
+          return record(i, found).item;
+        }),
+      );
+    }
+  } finally {
+    checking = false;
+  }
 }
 
 export function removeItem(id: string) {

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatPrice } from "@/lib/items";
-import { addItem, removeItem, useItems } from "@/lib/store";
+import { addItem, checkItems, removeItem, useItems } from "@/lib/store";
 import { Delta, Sparkline } from "./sparkline";
 
 const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -12,6 +12,29 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const [checking, setChecking] = useState(false);
+
+  // ponytail: prices are only re-checked while the app is open. The extension
+  // covers background checks; Periodic Background Sync could do it here.
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === "visible") checkItems(true);
+    };
+    tick();
+    const timer = setInterval(tick, 5 * 60_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
+
+  async function refresh() {
+    setChecking(true);
+    await checkItems();
+    setChecking(false);
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +54,11 @@ export default function Home() {
     <main>
       <header>
         <h1>Dip</h1>
+        {items.length > 0 && (
+          <button className="plain" onClick={refresh} disabled={checking}>
+            {checking ? "Checking…" : "Refresh"}
+          </button>
+        )}
       </header>
 
       <form onSubmit={add}>
@@ -60,7 +88,9 @@ export default function Home() {
                 <summary>
                   <span className="what">
                     <span className="title">{item.title}</span>
-                    <span className="sub">{new URL(item.url).hostname.replace(/^www\./, "")}</span>
+                    <span className={item.error ? "sub up" : "sub"}>
+                      {item.error ?? new URL(item.url).hostname.replace(/^www\./, "")}
+                    </span>
                   </span>
                   <Sparkline points={item.history} />
                   <span className="price">

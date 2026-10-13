@@ -204,3 +204,10 @@ summary::-webkit-details-marker {
 .actions .danger {
   color: var(--up);
 }
+
+.plain {
+  padding: 8px 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 400;
+}
