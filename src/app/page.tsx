@@ -18,6 +18,11 @@ export default function Home() {
   // ponytail: prices are only re-checked while the app is open. The extension
   // covers background checks; Periodic Background Sync could do it here.
   useEffect(() => {
+    // not in dev: a caching worker and hot reload don't get along
+    if (process.env.NODE_ENV === "production") navigator.serviceWorker?.register("/sw.js");
+  }, []);
+
+  useEffect(() => {
     const tick = () => {
       if (document.visibilityState === "visible") checkItems(true);
     };
