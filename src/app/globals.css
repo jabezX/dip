@@ -211,3 +211,18 @@ summary::-webkit-details-marker {
   color: var(--accent);
   font-weight: 400;
 }
+
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 16px;
+  margin-top: 32px;
+  text-align: center;
+}
+
+footer .sub {
+  flex-basis: 100%;
+  white-space: normal;
+}

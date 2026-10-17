@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { formatPrice } from "@/lib/items";
 import { addItem, checkItems, removeItem, useItems } from "@/lib/store";
 import { Delta, Sparkline } from "./sparkline";
 
-const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+const noSubscribe = () => () => {};
+const when =(t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 export default function Home() {
   const items = useItems();
@@ -14,6 +15,14 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const [checking, setChecking] = useState(false);
+
+  const stored = useSyncExternalStore(
+    noSubscribe,
+    () => window.Notification?.permission ?? "denied",
+    () => "denied" as const,
+  );
+  const [asked, setAsked] = useState<NotificationPermission>();
+  const alerts = asked ?? stored;
 
   // ponytail: prices are only re-checked while the app is open. The extension
   // covers background checks; Periodic Background Sync could do it here.
@@ -127,6 +136,15 @@ export default function Home() {
           ))}
         </ul>
       )}
+
+      <footer>
+        {alerts === "default" && (
+          <button className="plain" onClick={async () => setAsked(await Notification.requestPermission())}>
+            Turn on price alerts
+          </button>
+        )}
+        <p className="sub">Your list and price history stay on this device.</p>
+      </footer>
     </main>
   );
 }

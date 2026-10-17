@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { newItem, record, type Found, type Item } from "./items";
+import { formatPrice, newItem, record, type Found, type Item } from "./items";
 
 // ponytail: one localStorage key holds everything. Fine for hundreds of
 // items; move to IndexedDB if someone tracks thousands.
@@ -56,6 +56,26 @@ export async function addItem(url: string) {
   setItems([item, ...getItems()]);
 }
 
+async function notify(item: Item, previous: number) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const now = item.history[item.history.length - 1].p;
+  const title = `${now < previous ? "Price drop" : "Price up"}: ${item.title}`;
+  const options = {
+    body: `${formatPrice(previous, item.currency)} → ${formatPrice(now, item.currency)}`,
+    icon: "/icon-192.png",
+    tag: item.id,
+    data: { url: item.url },
+  };
+  try {
+    // Android only allows notifications through a service worker
+    const worker = await navigator.serviceWorker?.getRegistration();
+    if (worker) await worker.showNotification(title, options);
+    else new Notification(title, options);
+  } catch {
+    // the price is in the list either way
+  }
+}
+
 const STALE = 30 * 60_000;
 let checking = false;
 
@@ -72,7 +92,9 @@ export async function checkItems(onlyStale = false) {
         getItems().map((i) => {
           if (i.id !== id) return i;
           if (found instanceof Error) return { ...i, error: found.message, checkedAt: Date.now() };
-          return record(i, found).item;
+          const { item, previous } = record(i, found);
+          if (previous != null) notify(item, previous);
+          return item;
         }),
       );
     }

@@ -20,3 +20,8 @@ self.addEventListener("fetch", (e) => {
       .catch(async () => (await caches.match(request)) ?? Response.error()),
   );
 });
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.openWindow(e.notification.data?.url ?? "/"));
+});
