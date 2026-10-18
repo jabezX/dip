@@ -31,6 +31,15 @@ export default function Home() {
     if (process.env.NODE_ENV === "production") navigator.serviceWorker?.register("/sw.js");
   }, []);
 
+  // opened through the share sheet (see share_target in manifest.ts)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const shared = `${params.get("url") ?? ""} ${params.get("text") ?? ""}`.match(/https?:\/\/\S+/)?.[0];
+    if (!shared) return;
+    history.replaceState(null, "", "/");
+    addItem(shared).catch((e: Error) => setError(e.message));
+  }, []);
+
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === "visible") checkItems(true);
