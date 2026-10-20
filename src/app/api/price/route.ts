@@ -67,6 +67,9 @@ async function fetchPage(input: string) {
       url = new URL(location, url);
       continue;
     }
+    if ([401, 403, 429].includes(res.status)) {
+      throw new Rejected("This shop blocks lookups from servers. The browser extension can still watch it.");
+    }
     if (!res.ok) throw new Rejected(`The shop answered with ${res.status}`);
     if (!res.body) return "";
 
