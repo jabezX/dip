@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { BlockList } from "node:net";
-import { extractPrice } from "@/lib/extract";
+import { extractPrice } from "@core/extract";
 
 // Stateless: fetch the page, read the price, forget everything.
 // It exists only because browsers can't fetch shop pages cross-origin.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { formatPrice } from "@/lib/items";
+import { formatPrice } from "@core/items";
 import { addItem, checkItems, removeItem, useItems } from "@/lib/store";
 import { Delta, Sparkline } from "./sparkline";
 

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { formatPrice, newItem, record, type Found, type Item } from "./items";
+import { formatPrice, newItem, record, type Found, type Item } from "@core/items";
 
 // ponytail: one localStorage key holds everything. Fine for hundreds of
 // items; move to IndexedDB if someone tracks thousands.

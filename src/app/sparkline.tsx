@@ -1,4 +1,4 @@
-import type { Point } from "@/lib/items";
+import type { Point } from "@core/items";
 
 const W = 64;
 const H = 24;
