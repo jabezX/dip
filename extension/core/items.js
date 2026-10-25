@@ -43,6 +43,28 @@ export function record(item, found, now = Date.now()) {
   };
 }
 
+/**
+ * Percent change between the last two prices, null if there's nothing to compare.
+ * @param {Point[]} history
+ */
+export function change(history) {
+  if (history.length < 2) return null;
+  const [prev, last] = history.slice(-2);
+  return prev.p ? ((last.p - prev.p) / prev.p) * 100 : null;
+}
+
+/**
+ * Notification text for a price that just moved.
+ * @param {Item} item @param {number} previous
+ */
+export function describeChange(item, previous) {
+  const now = item.history[item.history.length - 1].p;
+  return {
+    title: `${now < previous ? "Price drop" : "Price up"}: ${item.title}`,
+    body: `${formatPrice(previous, item.currency)} → ${formatPrice(now, item.currency)}`,
+  };
+}
+
 /** @param {number} price @param {string | null} currency */
 export function formatPrice(price, currency) {
   try {
