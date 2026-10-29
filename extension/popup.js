@@ -36,6 +36,15 @@ function row(item) {
   );
 }
 
+/**
+ * Background checks can only fetch shops the user has allowed, one site at a
+ * time. Must run inside a click handler.
+ */
+function allow(urls) {
+  const origins = [...new Set(urls.map((u) => `${new URL(u).origin}/*`))];
+  return origins.length ? chrome.permissions.request({ origins }).catch(() => false) : true;
+}
+
 async function render() {
   $("list").replaceChildren(...(await load()).map(row));
 }
@@ -58,12 +67,15 @@ $("watch").onclick = async () => {
     const found = extractPrice(html);
     if (!found) throw new Error("No price found on this page");
     await save([newItem(tab.url, found), ...items]);
+    // asked last: the permission dialog may close the popup
+    await allow([tab.url]);
   } catch (e) {
     $("status").textContent = e.message;
   }
 };
 
 $("check").onclick = async () => {
+  await allow((await load()).map((i) => i.url)); // silent if already granted
   $("check").disabled = true;
   await chrome.runtime.sendMessage("check");
   $("check").disabled = false;

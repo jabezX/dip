@@ -24,6 +24,9 @@ chrome.notifications.onClicked.addListener(async (id) => {
 const load = async () => (await chrome.storage.local.get("items")).items ?? [];
 
 async function lookup(url) {
+  if (!(await chrome.permissions.contains({ origins: [`${new URL(url).origin}/*`] }))) {
+    throw new Error("Needs access to this shop. Press Refresh to allow.");
+  }
   // with cookies, so the shop sees the same visitor it sees in a tab
   const res = await fetch(url, { credentials: "include", signal: AbortSignal.timeout(20_000) });
   if (!res.ok) throw new Error(`The shop answered with ${res.status}`);
