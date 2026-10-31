@@ -74,7 +74,15 @@ $("watch").onclick = async () => {
   }
 };
 
-$("check").onclick = async () => {
+// the file opens in the web app's Import
+$("export").onclick = async () => {
+  const blob = new Blob([JSON.stringify(await load(), null, 2)], { type: "application/json" });
+  const link = el("a", { href: URL.createObjectURL(blob), download: "dip-export.json" });
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
+$("check").onclick =async () => {
   await allow((await load()).map((i) => i.url)); // silent if already granted
   $("check").disabled = true;
   await chrome.runtime.sendMessage("check");

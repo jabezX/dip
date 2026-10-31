@@ -150,3 +150,8 @@ button:disabled {
   font-size: 16px;
   font-weight: 400;
 }
+
+footer {
+  margin-top: 8px;
+  text-align: center;
+}
