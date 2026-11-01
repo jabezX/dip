@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { formatPrice, newItem, record, type Found, type Item } from "./items";
+import { describeChange, newItem, record, type Found, type Item } from "@core/items";
 
 // ponytail: one localStorage key holds everything. Fine for hundreds of
 // items; move to IndexedDB if someone tracks thousands.
@@ -58,14 +58,8 @@ export async function addItem(url: string) {
 
 async function notify(item: Item, previous: number) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const now = item.history[item.history.length - 1].p;
-  const title = `${now < previous ? "Price drop" : "Price up"}: ${item.title}`;
-  const options = {
-    body: `${formatPrice(previous, item.currency)} → ${formatPrice(now, item.currency)}`,
-    icon: "/icon-192.png",
-    tag: item.id,
-    data: { url: item.url },
-  };
+  const { title, body } = describeChange(item, previous);
+  const options = { body, icon: "/icon-192.png", tag: item.id, data: { url: item.url } };
   try {
     // Android only allows notifications through a service worker
     const worker = await navigator.serviceWorker?.getRegistration();

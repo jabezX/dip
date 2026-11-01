@@ -1,4 +1,4 @@
-import type { Point } from "@/lib/items";
+import { change, type Point } from "@core/items";
 
 const W = 64;
 const H = 24;
@@ -34,10 +34,8 @@ export function Sparkline({ points }: { points: Point[] }) {
 
 /** Change between the last two prices, e.g. "▼ 12.5%". */
 export function Delta({ points }: { points: Point[] }) {
-  if (points.length < 2) return null;
-  const [prev, last] = points.slice(-2);
-  if (!prev.p) return null;
-  const pct = ((last.p - prev.p) / prev.p) * 100;
+  const pct = change(points);
+  if (pct == null) return null;
   return (
     <span className={`delta ${pct < 0 ? "down" : "up"}`}>
       {pct < 0 ? "▼" : "▲"} {Math.abs(pct).toFixed(1)}%
