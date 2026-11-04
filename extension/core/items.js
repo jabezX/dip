@@ -44,6 +44,27 @@ export function record(item, found, now = Date.now()) {
 }
 
 /**
+ * Is this a well-formed item? Imported files are untrusted.
+ * @param {any} v
+ * @returns {v is Item}
+ */
+export function isItem(v) {
+  return (
+    !!v &&
+    typeof v.id === "string" &&
+    typeof v.title === "string" &&
+    typeof v.url === "string" &&
+    /^https?:\/\//i.test(v.url) && // it ends up in an href
+    URL.canParse(v.url) &&
+    (v.currency === null || typeof v.currency === "string") &&
+    Number.isFinite(v.checkedAt) &&
+    Array.isArray(v.history) &&
+    v.history.length > 0 &&
+    v.history.every((pt) => pt && Number.isFinite(pt.t) && Number.isFinite(pt.p))
+  );
+}
+
+/**
  * Percent change between the last two prices, null if there's nothing to compare.
  * @param {Point[]} history
  */

@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { newItem, record } from "./items.js";
+import { isItem, newItem, record } from "./items.js";
+
+test("isItem rejects malformed and unsafe entries", () => {
+  const good = newItem("https://shop.test/p/1", { price: 20, currency: null, title: "Thing" });
+  assert.equal(isItem(good), true);
+  assert.equal(isItem(JSON.parse(JSON.stringify(good))), true);
+  assert.equal(isItem({ ...good, url: "javascript:alert(1)" }), false);
+  assert.equal(isItem({ ...good, history: [] }), false);
+  assert.equal(isItem({ ...good, history: [{ t: 1, p: "20" }] }), false);
+  assert.equal(isItem(null), false);
+});
 
 test("record only adds a point when the price changes", () => {
   const item = newItem("https://shop.test/p/1", { price: 20, currency: "EUR", title: "Thing" }, 1);

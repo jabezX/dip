@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { formatPrice } from "@core/items";
-import { addItem, checkItems, removeItem, useItems } from "@/lib/store";
+import { addItem, checkItems, importItems, removeItem, useItems } from "@/lib/store";
 import { Delta, Sparkline } from "./sparkline";
 
 const noSubscribe = () => () => {};
@@ -15,6 +15,7 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const [checking, setChecking] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const stored = useSyncExternalStore(
     noSubscribe,
@@ -57,6 +58,27 @@ export default function Home() {
     setChecking(true);
     await checkItems();
     setChecking(false);
+  }
+
+  function exportList() {
+    const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "dip-export.json";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  async function importList(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // so picking the same file again still fires
+    if (!file) return;
+    try {
+      importItems(await file.text());
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import failed");
+    }
   }
 
   async function add(e: React.FormEvent) {
@@ -152,6 +174,15 @@ export default function Home() {
             Turn on price alerts
           </button>
         )}
+        {items.length > 0 && (
+          <button className="plain" onClick={exportList}>
+            Export
+          </button>
+        )}
+        <button className="plain" onClick={() => fileInput.current?.click()}>
+          Import
+        </button>
+        <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={importList} />
         <p className="sub">Your list and price history stay on this device.</p>
       </footer>
     </main>

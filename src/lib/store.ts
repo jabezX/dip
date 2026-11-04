@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { describeChange, newItem, record, type Found, type Item } from "@core/items";
+import { describeChange, isItem, newItem,record, type Found, type Item } from "@core/items";
 
 // ponytail: one localStorage key holds everything. Fine for hundreds of
 // items; move to IndexedDB if someone tracks thousands.
@@ -95,6 +95,21 @@ export async function checkItems(onlyStale = false) {
   } finally {
     checking = false;
   }
+}
+
+/** Merge an export file (from here or from the extension). Returns how many were added. */
+export function importItems(json: string) {
+  let incoming: unknown;
+  try {
+    incoming = JSON.parse(json);
+  } catch {
+    incoming = null;
+  }
+  if (!Array.isArray(incoming) || !incoming.every(isItem)) throw new Error("That file isn't a Dip export");
+  const known = new Set(getItems().map((i) => i.url));
+  const fresh = (incoming as Item[]).filter((i) => !known.has(i.url));
+  setItems([...getItems(), ...fresh]);
+  return fresh.length;
 }
 
 export function removeItem(id: string) {
