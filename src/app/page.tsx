@@ -6,7 +6,7 @@ import { addItem, checkItems, importItems, removeItem, useItems } from "@/lib/st
 import { Delta, Sparkline } from "./sparkline";
 
 const noSubscribe = () => () => {};
-const when =(t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 export default function Home() {
   const items = useItems();
@@ -25,8 +25,6 @@ export default function Home() {
   const [asked, setAsked] = useState<NotificationPermission>();
   const alerts = asked ?? stored;
 
-  // ponytail: prices are only re-checked while the app is open. The extension
-  // covers background checks; Periodic Background Sync could do it here.
   useEffect(() => {
     // not in dev: a caching worker and hot reload don't get along
     if (process.env.NODE_ENV === "production") navigator.serviceWorker?.register("/sw.js");
@@ -41,6 +39,8 @@ export default function Home() {
     addItem(shared).catch((e: Error) => setError(e.message));
   }, []);
 
+  // ponytail: prices are only re-checked while the app is open. The extension
+  // covers background checks; Periodic Background Sync could do it here.
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === "visible") checkItems(true);
