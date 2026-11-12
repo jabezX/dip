@@ -2,6 +2,8 @@
   "name": "dip",
   "version": "0.1.0",
   "private": true,
+  "description": "Watch prices. Privately.",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
