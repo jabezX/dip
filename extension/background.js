@@ -1,5 +1,6 @@
 import { extractPrice } from "./core/extract.js";
-import { describeChange, record } from "./core/items.js";
+import { describeChange, record, TEST_URL, testFound } from "./core/items.js";
+import { answer, suggest } from "./suggest.js";
 
 const PERIOD_MINUTES = 60;
 
@@ -8,7 +9,20 @@ chrome.runtime.onInstalled.addListener(schedule);
 chrome.runtime.onStartup.addListener(schedule);
 chrome.alarms.onAlarm.addListener(() => checkAll());
 
+// A product page finished loading on a shop Dip may read: offer to watch it.
+// (tab.url is only filled in for sites the extension has access to.)
+const ours = new Set(); // tabs opened by renderedLookup
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status !== "complete" || ours.has(tabId) || !/^https?:/.test(tab?.url ?? "")) return;
+  suggest(tabId, tab.url).catch(() => {}); // a page we can't script is not an error
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, reply) => {
+  // the buttons on the suggestion card
+  if (message?.type === "suggestion") {
+    answer(message);
+    return;
+  }
   // the popup's Refresh button
   if (message === "check") {
     checkAll().then(() => reply(true));
@@ -34,6 +48,7 @@ const load = async () => (await chrome.storage.local.get("items")).items ?? [];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function lookup(url) {
+  if (url === TEST_URL) return testFound();
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) throw new Error("Only http(s) links are supported");
   if (!(await chrome.permissions.contains({ origins: [`${new URL(url).origin}/*`] }))) {
     throw new Error("Dip isn't allowed to read this shop yet. Open the Dip extension and allow it.");
@@ -64,6 +79,7 @@ async function lookup(url) {
 // seconds. Only reached when the plain fetch finds nothing.
 async function renderedLookup(url) {
   const tab = await chrome.tabs.create({ url, active: false });
+  ours.add(tab.id);
   try {
     await new Promise((resolve) => {
       const done = () => {
@@ -82,6 +98,7 @@ async function renderedLookup(url) {
     });
     return extractPrice(result);
   } finally {
+    ours.delete(tab.id);
     chrome.tabs.remove(tab.id).catch(() => {});
   }
 }
