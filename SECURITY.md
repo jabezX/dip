@@ -24,9 +24,16 @@ sensitive internal services, restrict its outbound network access as well.
 
 There is no rate limiting built in.
 
-**The extension** asks for access one shop at a time, only for shops you add.
-Background checks send that shop's cookies, the same as opening the page in a
-tab would. Page titles are treated as text, never as HTML.
+**The extension** asks for access one shop at a time, only for shops you add,
+unless you choose "Let Dip check any shop". Background checks send that shop's
+cookies, the same as opening the page in a tab would, and may load the page in
+a background tab. Page titles are treated as text, never as HTML.
+
+**The web app bridge.** On the addresses listed under `content_scripts` in
+`extension/manifest.json` (`localhost` by default), a page can ask the
+extension to look up a link. It gets back only the extracted price, title and
+picture, never the page itself, and only for shops the extension has been
+allowed to read. Only add addresses you control to that list.
 
 **Imported files** are validated before use; links that aren't `http(s)` are
 rejected.
