@@ -7,36 +7,36 @@
   </head>
   <body>
     <header>
-      <div class="brand"><img src="icons/48.png" width="24" height="24" alt="" />Dip</div>
+      <div class="brand"><img src="icons/48.png" width="20" height="20" alt="" />Dip</div>
       <nav>
-        <button id="export" class="icon" title="Export list" aria-label="Export list">
-          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-        </button>
-        <button id="check" class="icon" title="Check prices now" aria-label="Check prices now">
-          <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v6h-6" /></svg>
-        </button>
+        <button id="check" class="icon" title="Check now" aria-label="Check prices now"></button>
+        <button id="settings" class="icon" title="Settings" aria-label="Settings"></button>
       </nav>
     </header>
 
-    <button id="watch">
-      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-      Watch this page
-    </button>
-    <p id="status" role="status"></p>
+    <button id="watch" class="primary"></button>
+    <div id="toast" role="status" hidden></div>
 
-    <button id="allow" class="notice" hidden>
-      <b>Let Dip check any shop</b>
-      <span>One-time permission. Needed for the Dip web app to look prices up through this extension.</span>
-    </button>
+    <div id="tools" hidden>
+      <label class="search"><input id="q" type="search" placeholder="Search" aria-label="Search" /></label>
+      <select id="show" aria-label="Show"></select>
+      <select id="sort" aria-label="Sort">
+        <option value="added">Newest</option>
+        <option value="drop">Biggest drop</option>
+        <option value="price">Price</option>
+        <option value="name">Name</option>
+        <option value="shop">Shop</option>
+        <option value="checked">Checked</option>
+      </select>
+    </div>
 
     <ul id="list"></ul>
-    <p id="empty">Nothing watched yet.<br />Open a product page and press <b>Watch this page</b>.</p>
+    <p id="empty" class="empty" hidden>Nothing watched yet</p>
+    <p id="none" class="empty" hidden>No matches</p>
 
-    <p id="try" hidden>
-      Want to see an alert? <button id="test" class="link">Add a test product</button>, then press refresh.
-    </p>
-
-    <label class="toggle"><input type="checkbox" id="suggest" /> Offer to watch products on shop pages</label>
+    <div id="modal" class="modal" hidden>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="m-title"></div>
+    </div>
 
     <script type="module" src="popup.js"></script>
   </body>
