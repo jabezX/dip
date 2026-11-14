@@ -17,6 +17,43 @@
 
 const MAX_POINTS = 500;
 
+// query parameters that say where a click came from, not which product it is
+const TRACKING =
+  /^(utm_\w+|fbclid|gclid|gclsrc|dclid|msclkid|mc_[ce]id|igshid|_ga|_gl|ref_?|referrer|spm|scm|cmpid|psc|sr|qid|keywords|crid|sprefix|pd_rd_\w+|pf_rd_\w+|content-id|_encoding|linkCode|linkId|ascsubtag|srsltid|trk\w*)$/i;
+
+/**
+ * One key per product, however its link was copied: ignores "www.",
+ * #fragments, trailing slashes, tracking parameters and parameter order.
+ * @param {string} url
+ */
+export function productKey(url) {
+  const u = new URL(url);
+  const host = u.hostname.replace(/^www\./, "").toLowerCase();
+  // Amazon puts the title and a referrer in the path; the ASIN is the product
+  const asin = /(^|\.)amazon\./.test(host) && u.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/(\w{10})(?:\/|$)/);
+  if (asin) return `${host}/dp/${asin[1].toUpperCase()}`;
+  const params = [...u.searchParams]
+    .filter(([name]) => !TRACKING.test(name))
+    .map(([name, value]) => `${name}=${value}`)
+    .sort()
+    .join("&");
+  return host + u.pathname.replace(/\/+$/, "") + (params && `?${params}`);
+}
+
+/** @param {Item[]} items @param {string} url */
+export const isWatched = (items, url) => items.some((i) => productKey(i.url) === productKey(url));
+
+/** A made-up product whose price moves on every check, for trying out notifications. */
+export const TEST_URL = "https://example.com/dip-test-product";
+
+/** @returns {Found} */
+export const testFound = () => ({
+  price: Math.round(2000 + Math.random() * 4000) / 100,
+  currency: "USD",
+  title: "Test product (its price changes on every check)",
+  image: null,
+});
+
 /** @param {string} url @param {Found} found @returns {Item} */
 export function newItem(url, found, now = Date.now()) {
   return {

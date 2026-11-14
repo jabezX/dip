@@ -1,5 +1,15 @@
 import { useSyncExternalStore } from "react";
-import { describeChange, isItem, newItem,record, type Found, type Item } from "@core/items";
+import {
+  describeChange,
+  isItem,
+  isWatched,
+  newItem,
+  record,
+  TEST_URL,
+  testFound,
+  type Found,
+  type Item,
+} from "@core/items";
 
 // ponytail: one localStorage key holds everything. Fine for hundreds of
 // items; move to IndexedDB if someone tracks thousands.
@@ -76,6 +86,7 @@ export const hasExtension = () =>
   ));
 
 async function lookup(url: string): Promise<Found> {
+  if (url === TEST_URL) return testFound();
   // The extension reads the shop from this browser, which works on far more
   // shops than a server does. Without it, fall back to /api/price.
   if (await hasExtension()) return ask<Found>({ dip: "lookup", url }, 60_000);
@@ -86,8 +97,12 @@ async function lookup(url: string): Promise<Found> {
 }
 
 export async function addItem(url: string) {
-  if (getItems().some((i) => i.url === url)) throw new Error("You're already watching that link");
+  const duplicate = () => {
+    if (isWatched(getItems(), url)) throw new Error("You're already watching that product");
+  };
+  duplicate();
   const item = newItem(url, await lookup(url));
+  duplicate(); // again: the same link may have been added while we were looking
   setItems([item, ...getItems()]);
 }
 
@@ -141,10 +156,12 @@ export function importItems(json: string) {
     incoming = null;
   }
   if (!Array.isArray(incoming) || !incoming.every(isItem)) throw new Error("That file isn't a Dip export");
-  const known = new Set(getItems().map((i) => i.url));
-  const fresh = (incoming as Item[]).filter((i) => !known.has(i.url));
-  setItems([...getItems(), ...fresh]);
-  return fresh.length;
+  // skip what is already here, and repeats inside the file itself
+  const merged = [...getItems()];
+  for (const item of incoming as Item[]) if (!isWatched(merged, item.url)) merged.push(item);
+  const added = merged.length - getItems().length;
+  setItems(merged);
+  return added;
 }
 
 export function removeItem(id: string) {

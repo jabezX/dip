@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isItem, newItem, record } from "./items.js";
+import { isItem, isWatched, newItem, productKey, record } from "./items.js";
+
+test("the same product is recognised however the link was copied", () => {
+  const items = [newItem("https://www.shop.test/p/lamp/?color=red&size=2", { price: 1, currency: null, title: "Lamp" })];
+  assert.equal(isWatched(items, "https://shop.test/p/lamp?size=2&color=red&utm_source=mail&fbclid=x#reviews"), true);
+  assert.equal(isWatched(items, "https://shop.test/p/lamp?color=blue&size=2"), false);
+  assert.equal(isWatched(items, "https://shop.test/p/desk"), false);
+  assert.equal(
+    productKey("https://www.amazon.com/Some-Long-Title/dp/b0d1xd1zv3/ref=sr_1_1?th=1"),
+    productKey("https://amazon.com/gp/product/B0D1XD1ZV3"),
+  );
+});
 
 test("isItem rejects malformed and unsafe entries", () => {
   const good = newItem("https://shop.test/p/1", { price: 20, currency: null, title: "Thing" });

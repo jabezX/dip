@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { isWatched, TEST_URL } from "@core/items";
 import { addItem, checkItems, hasExtension, importItems, useItems } from "@/lib/store";
 import { Icon, Logo } from "./icons";
 import { ItemCard } from "./item-card";
@@ -13,7 +14,6 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
   const [extension, setExtension] = useState<boolean>();
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -47,10 +47,7 @@ export default function Home() {
       if (document.visibilityState === "visible") checkItems(true);
     };
     tick();
-    const timer = setInterval(() => {
-      tick();
-      setNow(Date.now());
-    }, 60_000);
+    const timer = setInterval(tick, 60_000);
     document.addEventListener("visibilitychange", tick);
     return () => {
       clearInterval(timer);
@@ -62,7 +59,6 @@ export default function Home() {
     setChecking(true);
     await checkItems();
     setChecking(false);
-    setNow(Date.now());
   }
 
   async function add(e: React.FormEvent) {
@@ -216,7 +212,7 @@ export default function Home() {
         {items.length > 0 ? (
           <ul className="list">
             {items.map((item) => (
-              <ItemCard key={item.id} item={item} now={now} />
+              <ItemCard key={item.id} item={item} />
             ))}
           </ul>
         ) : (
@@ -234,6 +230,16 @@ export default function Home() {
               <span>You get an alert when it changes</span>
             </li>
           </ol>
+        )}
+
+        {!isWatched(items, TEST_URL) && (
+          <p className="try">
+            Want to see an alert?{" "}
+            <button className="link" onClick={() => addItem(TEST_URL)}>
+              Add a test product
+            </button>{" "}
+            whose price changes on every check, then press refresh.
+          </p>
         )}
 
         <footer>Your list and price history stay on this device. No account, no tracking.</footer>

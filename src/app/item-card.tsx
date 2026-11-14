@@ -7,15 +7,6 @@ import { Chart } from "./sparkline";
 const date = (t: number) => new Date(t).toLocaleDateString(undefined, { dateStyle: "medium" });
 const dateTime = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto", style: "short" });
-function ago(t: number, now: number) {
-  const minutes = Math.round((t - now) / 60_000);
-  if (minutes > -1) return "just now";
-  if (minutes > -60) return relative.format(minutes, "minute");
-  if (minutes > -60 * 24) return relative.format(Math.round(minutes / 60), "hour");
-  return relative.format(Math.round(minutes / 60 / 24), "day");
-}
-
 function Thumb({ item, host }: { item: Item; host: string }) {
   const [broken, setBroken] = useState(false);
   if (!item.image || broken) return <span className="thumb letter">{host[0]?.toUpperCase()}</span>;
@@ -33,7 +24,7 @@ function Thumb({ item, host }: { item: Item; host: string }) {
   );
 }
 
-export function ItemCard({ item, now }: { item: Item; now: number }) {
+export function ItemCard({ item }: { item: Item }) {
   const host = new URL(item.url).hostname.replace(/^www\./, "");
   const prices = item.history.map((pt) => pt.p);
   const current = prices[prices.length - 1];
@@ -48,7 +39,7 @@ export function ItemCard({ item, now }: { item: Item; now: number }) {
           <span className="what">
             <span className="title">{item.title}</span>
             <span className="meta">
-              {host} · {ago(item.checkedAt, now)}
+              {host} · checked {dateTime(item.checkedAt)}
             </span>
             {item.error && <span className="meta bad">{item.error}</span>}
           </span>

@@ -559,3 +559,18 @@ footer {
     transition: none !important;
   }
 }
+
+.try {
+  margin-top: 28px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.link {
+  display: inline;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+}

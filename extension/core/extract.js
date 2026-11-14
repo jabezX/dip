@@ -32,6 +32,16 @@ export function parsePrice(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Does the page declare itself a product? Listing and home pages have prices
+ * too, so "found a price" alone doesn't say it's a product page.
+ * @param {string} html
+ */
+export const isProductPage = (html) =>
+  /"@type"\s*:\s*(\[[^\]]*)?"Product"|property=["']og:type["'][^>]*content=["'](og:)?product|product:price:amount|itemprop=["']?price["'\s>]/i.test(
+    html,
+  );
+
 /** @param {string} html @returns {Extracted | null} */
 export function extractPrice(html) {
   const meta = metas(html);
