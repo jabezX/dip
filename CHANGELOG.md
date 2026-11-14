@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0
+
+- Fix: a monthly instalment ("$33.29/mo.") could be read as the price and
+  reported as a price drop. Payment plans are now skipped everywhere, Amazon
+  pages only read the main price box, and drops over 40% are confirmed by a
+  second check before they are recorded or alerted
+- Checks run on your schedule: every N minutes, hours, days, weeks or months
+- Unavailable and unlisted products are detected and marked
+- Search, filter and sort, and your own lists
+- Shop logos when a product has no picture; better product pictures
+- Popup: smaller type, relative check times ("2 hours ago"), product opens on
+  click, details in a sheet, settings, yellow warnings
+- Test product (development builds only) alerts every minute until removed
+- Notifications no longer replace each other silently
+
 ## 0.2.0
 
 - The web app looks prices up through the extension when it's installed, so

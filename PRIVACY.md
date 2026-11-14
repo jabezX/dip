@@ -38,7 +38,7 @@ Dip makes no other requests. Nothing is sent to the developer.
 ## Permissions the extension uses
 
 - **storage**: keep your watch list on your device.
-- **alarms**: re-check prices about once an hour.
+- **alarms**: re-check prices on the schedule you choose.
 - **notifications**: tell you when a price changes.
 - **activeTab** and **scripting**: read the price from the page you are on
   when you press "Watch this page", and from pages Dip opens to re-check a

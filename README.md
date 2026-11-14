@@ -34,7 +34,11 @@ work. See [Web app or extension?](#web-app-or-extension)
 - The extension offers to watch a product when you open its page on a
   supported shop
 - The same product is never added twice, even from a differently copied link
-- Product pictures, lowest/highest price and a summary of what got cheaper
+- Product pictures (or the shop's logo), lowest/highest price and a summary
+  of what got cheaper
+- Checks on your schedule: every N minutes, hours, days, weeks or months
+- Spots products that are unavailable or no longer listed
+- Search, filter, sort, and group products into your own lists
 - No per-shop scrapers to maintain: prices are read from the structured data
   shops publish, or from the page itself when there is none
 - Export and import your list as a plain JSON file
@@ -49,7 +53,7 @@ work. See [Web app or extension?](#web-app-or-extension)
  │ list + history in │                │ list + history in     │
  │ localStorage      │                │ chrome.storage.local  │
  └─────────┬─────────┘                └───────────┬───────────┘
-           │ /api/price?url=…                     │ fetch, hourly
+           │ /api/price?url=…                     │ fetch, on your schedule
  ┌─────────▼─────────┐                            │
  │ stateless lookup  │                            │
  │ (stores nothing)  │                            │
@@ -62,7 +66,25 @@ Both read the price from the page, trying in this order:
 1. [schema.org](https://schema.org/Product) JSON-LD (`Product` → `offers`)
 2. Open Graph / product meta tags (`product:price:amount`)
 3. Microdata (`itemprop="price"`)
-4. The first element labelled "price" whose text reads like money
+4. The page's main price element, read off the page
+
+### Prices you can trust
+
+A wrong price that triggers a "price drop" alert is worse than no alert, so:
+
+- **Payment plans are never the price.** Monthly instalments ("$33.29/mo.",
+  "12 × €83,25", "3 payments of…"), Klarna/Affirm amounts, shipping, deposits,
+  crossed-out and "was" prices are all skipped, both in structured data and on
+  the page. When a page shows only an instalment, Dip finds no price rather
+  than the wrong one.
+- **On Amazon** only the main price box counts; the shipping tables, other
+  sellers and payment-plan widgets elsewhere on the page are ignored.
+- **Surprising drops are confirmed first.** A drop of more than 40%, or a price
+  read off the page that disagrees with the shop's structured data, is held
+  back and only recorded (and alerted) when the next check sees it again.
+
+The cases that tripped earlier versions are in
+[extension/core/extract.test.js](extension/core/extract.test.js).
 
 **Where the server comes in.** A web page isn't allowed to fetch another
 site's HTML, so on its own the web app asks one small route, `/api/price`, to
@@ -91,7 +113,7 @@ popup once and press **Let Dip check any shop**.
 | Shops that answer servers        | ✓             | ✓                  |
 | Shops with robot checks          |               | ✓                  |
 | Prices filled in by scripts      |               | ✓                  |
-| Checks while the app is closed   |               | ✓ (hourly)         |
+| Checks while the app is closed   |               | ✓                  |
 
 ## Getting started
 
@@ -133,11 +155,13 @@ one-line pull request.
 Any other shop works too: press **Watch this page** and Dip asks for access to
 that one site.
 
-**Trying notifications.** Press **Add a test product** (in the popup or the
-web app), then refresh. Its price changes on every check.
+**Trying notifications.** In a development build (the unpacked extension, or
+`npm run dev`), Settings has **Add test product**: a made-up product whose
+price changes every minute and sends an alert each time, until you remove it.
+Release builds don't contain it.
 
-To let the web app use the extension for its lookups, press **Let Dip check
-any shop** in the popup. That's the only time it asks for access to all sites,
+To let the web app use the extension for its lookups, turn on **Any shop** in
+the popup's settings. That's the only time it asks for access to all sites,
 and it's optional.
 
 The web app is recognised on `localhost` out of the box. If you host it
@@ -188,8 +212,9 @@ npm run lint
 - Without the extension, the web app can't read shops that turn servers away.
   It says so when that happens.
 - Without the extension, the web app only checks while it's open.
-- When a page has no structured data, the price is a best guess from the
-  page's markup and can be wrong (a "from" price, a different variant).
+- When a page has no structured data, the price is read off the page and can
+  still be wrong (a "from" price, a different variant). Big moves are confirmed
+  before they are recorded, small ones are not.
 - For shops that fill prices in with scripts, the extension briefly opens the
   page in a background tab on each check.
 - A shop that publishes a wrong or stale price in its structured data will
@@ -203,7 +228,8 @@ Nothing is collected. See [PRIVACY.md](PRIVACY.md).
 ## Releasing the extension
 
 `npm run package:ext` writes `dip-extension.zip` from the last commit, without
-the test files. The store copy and images are in [store/](store/).
+the test files, and with [release/dev.js](release/dev.js) in place of the test
+product. The store copy and images are in [store/](store/).
 
 ## Contributing
 
