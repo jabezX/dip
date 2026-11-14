@@ -2,7 +2,7 @@
 // String-only on purpose: this runs in Node and in an extension service
 // worker, and neither has a DOM.
 
-/** @typedef {{ price: number, currency: string | null, title: string | null }} Extracted */
+/** @typedef {{ price: number, currency: string | null, title: string | null, image: string | null }} Extracted */
 
 /**
  * "1,299.00", "1.299,00", "€ 19,99", 19.99 -> number
@@ -35,18 +35,27 @@ export function parsePrice(v) {
 /** @param {string} html @returns {Extracted | null} */
 export function extractPrice(html) {
   const meta = metas(html);
-  const fallbackTitle = meta["og:title"] ?? html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1];
-  const done = (price, currency, title) => ({
+  let name;
+  let image;
+  const done = (price, currency) => ({
     price,
     currency: typeof currency === "string" && currency ? currency.toUpperCase() : null,
-    title: decode(typeof title === "string" && title.trim() ? title : fallbackTitle),
+    title: decode(
+      typeof name === "string" && name.trim() ? name : (meta["og:title"] ?? html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]),
+    ),
+    image: imageUrl(image) ?? imageUrl(meta["og:image"]),
   });
 
   // 1. schema.org JSON-LD
   for (const m of html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
-      const product = findProduct(JSON.parse(m[1]));
-      if (product) return done(product.offer.price, product.offer.currency, product.name);
+      const data = JSON.parse(m[1]);
+      // a Product without offers still knows its name and picture
+      const product = findProduct(data, true) ?? findProduct(data, false);
+      if (!product) continue;
+      name ??= product.name;
+      image ??= product.image;
+      if (product.offer) return done(product.offer.price, product.offer.currency);
     } catch {
       // malformed JSON-LD is common, keep looking
     }
@@ -60,13 +69,61 @@ export function extractPrice(html) {
 
   // 3. microdata as text: <span itemprop="price">19.99</span>
   const text = parsePrice(html.match(/itemprop\s*=\s*["']?price["']?(?=[\s>])[^>]*>([^<]+)</i)?.[1]);
-  return text == null ? null : done(text, meta["pricecurrency"]);
+  if (text != null) return done(text, meta["pricecurrency"]);
+
+  // 4. no structured data: the first thing that is labelled "price" and
+  // reads like money
+  const shown = shownPrice(html);
+  return shown && done(shown.price, shown.currency);
 }
 
-function findProduct(node) {
+const SYMBOLS = {
+  "US$": "USD",
+  $: "USD",
+  "€": "EUR",
+  "£": "GBP",
+  "¥": "JPY",
+  "₹": "INR",
+  "₦": "NGN",
+  "₩": "KRW",
+  "₺": "TRY",
+  "₽": "RUB",
+  "₪": "ILS",
+  zł: "PLN",
+};
+const SYMBOL = "US\\$|[$€£¥₹₦₩₺₽₪]|zł";
+const NUMBER = "\\d{1,3}(?:[ .,]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?";
+const MONEY = new RegExp(`(${SYMBOL})\\s?(${NUMBER})|(${NUMBER})\\s?(${SYMBOL})`);
+// labelled "price", but not the one you pay
+const NOT_THE_PRICE = /old|was|strike|list|regular|original|cross|saving|ship|deliver|basis|text-price|compare|rrp|msrp|range|unit|per-|filter|slider|label/i;
+
+// ponytail: a guess, used only when a page has no structured data. "$" is
+// read as USD. A per-shop selector would beat this where it guesses wrong.
+function shownPrice(html) {
+  const body = html.replace(/<(script|style|noscript)\b[\s\S]*?<\/\1>/gi, "");
+  const labelled =
+    /<([a-z0-9]+)\b[^>]*\b(?:class|id|data-testid|data-test|data-qa)\s*=\s*["']([^"']*price[^"']*)["'][^>]*>([\s\S]{0,400}?)<\/\1>/gi;
+  for (const [, , label, inner] of body.matchAll(labelled)) {
+    if (NOT_THE_PRICE.test(label)) continue;
+    const m = decode(inner.replace(/<[^>]*>/g, ""))?.match(MONEY);
+    if (!m) continue;
+    const price = parsePrice(m[2] ?? m[3]);
+    if (price != null) return { price, currency: SYMBOLS[m[1] ?? m[4]] };
+  }
+  return null;
+}
+
+/** schema.org image: a URL, a list of them, or an ImageObject. */
+function imageUrl(v) {
+  const first = Array.isArray(v) ? v[0] : v;
+  const url = first && typeof first === "object" ? first.url : first;
+  return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
+}
+
+function findProduct(node, needOffer) {
   if (Array.isArray(node)) {
     for (const n of node) {
-      const found = findProduct(n);
+      const found = findProduct(n, needOffer);
       if (found) return found;
     }
     return null;
@@ -74,9 +131,9 @@ function findProduct(node) {
   if (!node || typeof node !== "object") return null;
   if ([node["@type"]].flat().includes("Product")) {
     const offer = findOffer(node.offers);
-    if (offer) return { name: node.name, offer };
+    if (offer || !needOffer) return { name: node.name, image: node.image, offer };
   }
-  return findProduct(Object.values(node)); // @graph, mainEntity, hasVariant, ...
+  return findProduct(Object.values(node), needOffer); // @graph, mainEntity, hasVariant, ...
 }
 
 function findOffer(node) {
@@ -111,7 +168,7 @@ function metas(html) {
   return out;
 }
 
-const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", euro: "€", pound: "£", yen: "¥" };
 
 function decode(s) {
   if (typeof s !== "string" || !s.trim()) return null;

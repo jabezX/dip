@@ -8,11 +8,12 @@
  * @property {string} url
  * @property {string} title
  * @property {string | null} currency
+ * @property {string | null} [image]  product picture, if the page names one
  * @property {Point[]} history  one point per price change, oldest first
  * @property {number} checkedAt
  * @property {string} [error]   why the last check failed
  */
-/** @typedef {{ price: number, currency: string | null, title: string | null }} Found */
+/** @typedef {{ price: number, currency: string | null, title: string | null, image?: string | null }} Found */
 
 const MAX_POINTS = 500;
 
@@ -23,6 +24,7 @@ export function newItem(url, found, now = Date.now()) {
     url,
     title: found.title ?? new URL(url).hostname,
     currency: found.currency,
+    image: found.image ?? null,
     history: [{ t: now, p: found.price }],
     checkedAt: now,
   };
@@ -38,7 +40,14 @@ export function record(item, found, now = Date.now()) {
   const changed = found.price !== last;
   const history = changed ? [...item.history, { t: now, p: found.price }].slice(-MAX_POINTS) : item.history;
   return {
-    item: { ...item, currency: found.currency ?? item.currency, history, checkedAt: now, error: undefined },
+    item: {
+      ...item,
+      currency: found.currency ?? item.currency,
+      image: found.image ?? item.image,
+      history,
+      checkedAt: now,
+      error: undefined,
+    },
     previous: changed ? last : null,
   };
 }
@@ -57,6 +66,7 @@ export function isItem(v) {
     /^https?:\/\//i.test(v.url) && // it ends up in an href
     URL.canParse(v.url) &&
     (v.currency === null || typeof v.currency === "string") &&
+    (v.image == null || (typeof v.image === "string" && /^https?:\/\//i.test(v.image))) &&
     Number.isFinite(v.checkedAt) &&
     Array.isArray(v.history) &&
     v.history.length > 0 &&
