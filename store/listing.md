@@ -24,13 +24,13 @@ English
 
 Dip keeps a watch list of products you care about and tells you when a price moves.
 
-Open a product page, click Dip, press "Watch this page". That's it. Dip remembers the price, checks it again about once an hour, and sends a notification when it goes down or up.
+Open a product page and Dip offers to watch it, or click Dip and press "Watch this page". That's it. Dip remembers the price, checks it again about once an hour, and sends a notification when it goes down or up.
 
 • Works on most shops, no setup. Dip reads the price the shop publishes on its own page.
 • Price history for every item, with the change since the last price.
 • Notifications for every change. Click one to open the product.
 • Private by design. No account, no analytics, no tracking. Your list and price history are stored in your browser and never leave it.
-• Asks for access one shop at a time, only for shops you add.
+• Knows 360+ popular shop sites out of the box; any other shop can be added with one click.
 • Export your list as a plain JSON file.
 • Free and open source (MIT).
 
@@ -60,7 +60,8 @@ Track the prices of product pages the user chooses and notify the user when a pr
 - **notifications**: Notifies the user when a watched price changes.
 - **activeTab**: Reads the current page when the user clicks "Watch this page", to find the product's price and title.
 - **scripting**: Reads the rendered HTML of the page the user is adding, and of a watched product page when its price is filled in by scripts, in order to extract the price.
-- **Host permissions (optional, `*://*/*`)**: Product pages can be on any shop, so the sites can't be listed in advance. Access is optional and requested at runtime, per shop, when the user adds a product from that shop. It is used only to fetch the watched product pages and read their price.
+- **Host permissions (the listed shop sites)**: The extension's purpose is tracking prices on shop product pages. On these well-known shopping sites it (1) reads the page the user is viewing to detect a product and offer to watch its price, and (2) fetches the product pages the user chose to watch, to read their current price. No data from these pages leaves the browser.
+- **Optional host permissions (`*://*/*`)**: Lets the user add a product from a shop that isn't on the built-in list. Requested at runtime, per shop, when the user presses "Watch this page" there.
 - **Content script on localhost**: Lets the user's own self-hosted Dip web app (an open-source companion that runs on localhost) ask the extension to look up a price. It returns only the extracted price, title and image address.
 
 **Remote code**

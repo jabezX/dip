@@ -43,9 +43,14 @@ Dip makes no other requests. Nothing is sent to the developer.
 - **activeTab** and **scripting**: read the price from the page you are on
   when you press "Watch this page", and from pages Dip opens to re-check a
   price.
-- **Access to shop sites (optional, asked per shop)**: fetch the product
-  pages you chose to watch. Dip asks for each shop when you add it. Access to
-  all sites is only requested if you press "Let Dip check any shop".
+- **Access to a built-in list of shop sites**: on these shopping sites Dip
+  reads the page you are viewing, inside your browser, to see whether it is a
+  product page and offer to watch its price, and fetches the product pages you
+  chose to watch. What it reads is not stored unless you choose to watch the
+  product, and is never sent anywhere. The offer can be switched off.
+- **Access to other sites (optional, asked per shop)**: for shops not on the
+  list, Dip asks when you add a product there. Access to all sites is only
+  requested if you press "Let Dip check any shop".
 
 ## Data sharing
 

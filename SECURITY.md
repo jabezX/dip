@@ -24,8 +24,10 @@ sensitive internal services, restrict its outbound network access as well.
 
 There is no rate limiting built in.
 
-**The extension** asks for access one shop at a time, only for shops you add,
-unless you choose "Let Dip check any shop". Background checks send that shop's
+**The extension** has access to the shop sites listed in its manifest, and
+asks for any other shop one at a time when you add a product there (or all at
+once if you choose "Let Dip check any shop"). The suggestion card it shows on
+product pages lives in a closed shadow root and renders page text as text. Background checks send that shop's
 cookies, the same as opening the page in a tab would, and may load the page in
 a background tab. Page titles are treated as text, never as HTML.
 

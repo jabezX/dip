@@ -8,6 +8,11 @@
 - Prices are found on pages without structured data
 - New design: product pictures, summary tiles, larger charts, lowest/highest
 - Clearer message when a shop can't be read from a server
+- Extension offers to watch a product when you open its page on a supported
+  shop (366 shop sites built in; can be switched off)
+- The same product can't be added twice, however its link was copied
+- Last check date and time on every product; expandable rows in the popup
+- A test product whose price changes on every check, to try notifications
 
 ## 0.1.0
 

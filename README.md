@@ -31,6 +31,9 @@ work. See [Web app or extension?](#web-app-or-extension)
 - Add a product by link, or straight from the page you're on
 - Price history with a sparkline per item
 - Notifications on any price change, up or down
+- The extension offers to watch a product when you open its page on a
+  supported shop
+- The same product is never added twice, even from a differently copied link
 - Product pictures, lowest/highest price and a summary of what got cheaper
 - No per-shop scrapers to maintain: prices are read from the structured data
   shops publish, or from the page itself when there is none
@@ -116,8 +119,22 @@ There's no build step.
 2. Turn on **Developer mode**
 3. Choose **Load unpacked** and pick the `extension/` folder
 
-Open a product page, click the Dip icon, then **Watch this page**. Dip asks
-for access to that one shop so it can re-check the price in the background.
+Open a product page, click the Dip icon, then **Watch this page**.
+
+**Supported shops.** The extension comes with access to 366 shop sites: the
+Amazon, eBay, Zalando, MediaMarkt, Decathlon, Shopee, Lazada, Jumia and
+Mercado Libre country sites, Walmart, Target, Best Buy, Etsy, AliExpress, IKEA,
+Apple, Nike and a few hundred more. On those, Dip shows a small "Watch this
+price?" card when you open a product page; switch it off in the popup, or per
+site on the card. The full list is `host_permissions` in
+[extension/manifest.json](extension/manifest.json); adding a shop is a
+one-line pull request.
+
+Any other shop works too: press **Watch this page** and Dip asks for access to
+that one site.
+
+**Trying notifications.** Press **Add a test product** (in the popup or the
+web app), then refresh. Its price changes on every check.
 
 To let the web app use the extension for its lookups, press **Let Dip check
 any shop** in the popup. That's the only time it asks for access to all sites,
