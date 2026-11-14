@@ -1,6 +1,6 @@
 {
   "name": "dip",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Watch prices. Privately.",
   "license": "MIT",
@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test"
+    "test": "node --test",
+    "package:ext": "git archive --format=zip -o dip-extension.zip HEAD:extension"
   },
   "dependencies": {
     "next": "16.3.8",

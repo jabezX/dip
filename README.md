@@ -179,6 +179,15 @@ npm run lint
   show that price here.
 - Firefox and Safari extensions aren't supported yet.
 
+## Privacy
+
+Nothing is collected. See [PRIVACY.md](PRIVACY.md).
+
+## Releasing the extension
+
+`npm run package:ext` writes `dip-extension.zip` from the last commit, without
+the test files. The store copy and images are in [store/](store/).
+
 ## Contributing
 
 Contributions are welcome, especially reports and fixes for shops whose prices

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - The web app looks prices up through the extension when it's installed, so
   shops that turn servers away (Amazon, eBay, …) work

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Dip",
-  "version": "0.1.0",
-  "description": "Watch prices. Privately.",
+  "version": "0.2.0",
+  "description": "Watch product prices and get notified when they change. Your list and price history stay in your browser.",
   "minimum_chrome_version": "121",
   "icons": {
     "16": "icons/16.png",
