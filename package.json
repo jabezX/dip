@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --test",
-    "package:ext": "cd extension && git archive --format=zip -o ../dip-extension.zip HEAD"
+    "package:ext": "cd extension && git archive --format=zip -o ../dip-extension.zip --prefix=core/ --add-file=../release/dev.js --prefix= HEAD"
   },
   "dependencies": {
     "next": "16.3.8",
