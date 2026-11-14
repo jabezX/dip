@@ -34,6 +34,10 @@ for (const [net, bits] of [
 
 class Rejected extends Error {}
 
+// robot checks, country pickers and script-filled prices all end up here
+const NEEDS_BROWSER =
+  "This shop only shows its price to a real browser. Install the Dip extension and it gets read in yours.";
+
 // ponytail: the address is checked here but fetch() resolves the name again,
 // so a DNS-rebinding host could slip through. Pin the resolved IP with a
 // custom dispatcher before running this as a public service.
@@ -68,7 +72,7 @@ async function fetchPage(input: string) {
       continue;
     }
     if ([401, 403, 429].includes(res.status)) {
-      throw new Rejected("This shop blocks lookups from servers. The browser extension can still watch it.");
+      throw new Rejected(NEEDS_BROWSER);
     }
     if (!res.ok) throw new Rejected(`The shop answered with ${res.status}`);
     if (!res.body) return "";
@@ -93,7 +97,7 @@ export async function GET(request: Request) {
   }
   try {
     const result = extractPrice(await fetchPage(target));
-    if (!result) return Response.json({ error: "No price found on that page" }, { status: 422 });
+    if (!result) return Response.json({ error: NEEDS_BROWSER }, { status: 422 });
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     const error = e instanceof Rejected ? e.message : "Could not load that page";

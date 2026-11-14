@@ -43,7 +43,42 @@ function subscribe(listener: () => void) {
 
 export const useItems = () => useSyncExternalStore(subscribe, getItems, () => EMPTY);
 
+/** Ask the Dip extension something through its content script (extension/bridge.js). */
+function ask<T>(message: { dip: string; url?: string }, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = crypto.randomUUID();
+    const stop = () => {
+      clearTimeout(timer);
+      removeEventListener("message", onMessage);
+    };
+    const timer = setTimeout(() => {
+      stop();
+      reject(new Error("The Dip extension didn't answer"));
+    }, ms);
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== window || e.data?.dip !== "result" || e.data.id !== id) return;
+      stop();
+      if (e.data.error) reject(new Error(e.data.error));
+      else resolve(e.data.found);
+    };
+    addEventListener("message", onMessage);
+    postMessage({ ...message, id }, location.origin);
+  });
+}
+
+let extension: Promise<boolean> | undefined;
+
+/** Is the extension installed and allowed on this site? Asked once per page load. */
+export const hasExtension = () =>
+  (extension ??= ask({ dip: "ping" }, 400).then(
+    () => true,
+    () => false,
+  ));
+
 async function lookup(url: string): Promise<Found> {
+  // The extension reads the shop from this browser, which works on far more
+  // shops than a server does. Without it, fall back to /api/price.
+  if (await hasExtension()) return ask<Found>({ dip: "lookup", url }, 60_000);
   const res = await fetch(`/api/price?url=${encodeURIComponent(url)}`);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? "Lookup failed");
