@@ -1,11 +1,13 @@
 import { extractPrice } from "./core/extract.js";
-import { change, formatPrice, newItem } from "./core/items.js";
+import { change, formatPrice, isWatched, newItem, TEST_URL, testFound } from "./core/items.js";
 
 const ANY_SHOP = { origins: ["*://*/*"] };
 
 const $ = (id) => document.getElementById(id);
 const load = async () => (await chrome.storage.local.get("items")).items ?? [];
 const save = (items) => chrome.storage.local.set({ items });
+const short = (t) => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const dateTime = (t) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 /** Tiny createElement helper. Text only: titles come from web pages. */
 function el(tag, props, ...children) {
@@ -22,30 +24,67 @@ function thumb(item, host) {
   return img;
 }
 
+const open = new Set(); // ids of expanded rows, kept across re-renders
+
 function row(item) {
   const host = new URL(item.url).hostname.replace(/^www\./, "");
+  const prices = item.history.map((pt) => pt.p);
+  const fmt = (p) => formatPrice(p, item.currency);
   const pct = change(item.history);
-  const money = el("span", { className: "money" }, formatPrice(item.history.at(-1).p, item.currency));
+
+  const money = el("span", { className: "money" }, fmt(prices.at(-1)));
   if (pct != null) {
     const delta = `${pct < 0 ? "▼" : "▲"} ${Math.abs(pct).toFixed(1)}%`;
     money.append(el("span", { className: `pill ${pct < 0 ? "down" : "up"}` }, delta));
   }
-  const remove = el("button", { className: "remove", title: "Remove", ariaLabel: `Remove ${item.title}` }, "×");
-  remove.onclick = async () => save((await load()).filter((i) => i.id !== item.id));
 
-  return el(
-    "li",
-    {},
+  const summary = el(
+    "summary",
+    { title: item.title },
     thumb(item, host),
     el(
-      "a",
-      { className: "what", href: item.url, target: "_blank", title: item.title },
+      "span",
+      { className: "what" },
       el("span", {}, item.title),
-      el("span", { className: item.error ? "sub up" : "sub" }, item.error ?? host),
+      el("span", { className: "sub" }, `${host} · checked ${short(item.checkedAt)}`),
+      item.error ? el("span", { className: "sub up" }, item.error) : "",
     ),
     money,
-    remove,
   );
+
+  const fact = (label, value) => el("div", {}, el("dt", {}, label), el("dd", {}, value));
+  const remove = el("button", { className: "soft danger" }, "Remove");
+  remove.onclick = async () => save((await load()).filter((i) => i.id !== item.id));
+
+  const more = el(
+    "div",
+    { className: "more" },
+    el(
+      "dl",
+      { className: "facts" },
+      fact("Lowest", fmt(Math.min(...prices))),
+      fact("Highest", fmt(Math.max(...prices))),
+      fact("First seen at", fmt(prices[0])),
+    ),
+    el(
+      "ol",
+      { className: "history" },
+      ...item.history
+        .slice(-8)
+        .reverse()
+        .map((pt) => el("li", {}, el("span", {}, dateTime(pt.t)), el("span", {}, fmt(pt.p)))),
+    ),
+    el(
+      "div",
+      { className: "actions" },
+      el("a", { className: "soft", href: item.url, target: "_blank" }, "Open page"),
+      remove,
+    ),
+  );
+
+  const details = el("details", { open: open.has(item.id) }, summary, more);
+  details.ontoggle = () => (details.open ? open.add(item.id) : open.delete(item.id));
+  return el("li", {}, details);
 }
 
 /**
@@ -53,12 +92,18 @@ function row(item) {
  * Must run inside a click handler.
  */
 function allow(urls) {
-  const origins = [...new Set(urls.map((u) => `${new URL(u).origin}/*`))];
+  const origins = [...new Set(urls.filter((u) => u !== TEST_URL).map((u) => `${new URL(u).origin}/*`))];
   return origins.length ? chrome.permissions.request({ origins }).catch(() => false) : true;
 }
 
+const prefs = async () => (await chrome.storage.local.get("prefs")).prefs ?? {};
+$("suggest").onchange = async (e) => chrome.storage.local.set({ prefs: { ...(await prefs()), suggest: e.target.checked } });
+
 async function render() {
-  $("list").replaceChildren(...(await load()).map(row));
+  const items = await load();
+  $("suggest").checked = (await prefs()).suggest !== false;
+  $("list").replaceChildren(...items.map(row));
+  $("try").hidden = isWatched(items, TEST_URL);
   $("allow").hidden = await chrome.permissions.contains(ANY_SHOP);
 }
 chrome.storage.onChanged.addListener(render);
@@ -69,13 +114,16 @@ $("allow").onclick = async () => {
   render();
 };
 
+// a made-up product whose price changes on every check, to try notifications
+$("test").onclick = async () => save([newItem(TEST_URL, testFound()), ...(await load())]);
+
 $("watch").onclick = async () => {
   $("status").textContent = "";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!/^https?:/.test(tab?.url ?? "")) throw new Error("Open a product page first");
     const items = await load();
-    if (items.some((i) => i.url === tab.url)) throw new Error("Already watching this page");
+    if (isWatched(items, tab.url)) throw new Error("You're already watching this product");
 
     // read the page as rendered, so prices filled in by scripts count too
     const [{ result: html }] = await chrome.scripting.executeScript({
