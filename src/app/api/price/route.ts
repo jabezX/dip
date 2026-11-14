@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { BlockList } from "node:net";
-import { extractPrice } from "@core/extract";
+import { extractPrice, isUnavailable } from "@core/extract";
 
 // Stateless: fetch the page, read the price, forget everything.
 // It exists only because browsers can't fetch shop pages cross-origin.
@@ -32,11 +32,12 @@ for (const [net, bits] of [
   blocked.addSubnet(net, bits, "ipv6");
 }
 
-class Rejected extends Error {}
+class Rejected extends Error {
+  gone = false;
+}
 
 // robot checks, country pickers and script-filled prices all end up here
-const NEEDS_BROWSER =
-  "This shop only shows its price to a real browser. Install the Dip extension and it gets read in yours.";
+const NEEDS_BROWSER = "This shop needs the Dip extension";
 
 // ponytail: the address is checked here but fetch() resolves the name again,
 // so a DNS-rebinding host could slip through. Pin the resolved IP with a
@@ -74,8 +75,9 @@ async function fetchPage(input: string) {
     if ([401, 403, 429].includes(res.status)) {
       throw new Rejected(NEEDS_BROWSER);
     }
-    if (!res.ok) throw new Rejected(`The shop answered with ${res.status}`);
-    if (!res.body) return "";
+    if (res.status === 404 || res.status === 410) throw Object.assign(new Rejected("Unlisted"), { gone: true });
+    if (!res.ok) throw new Rejected(`Shop answered ${res.status}`);
+    if (!res.body) return { html: "", url: url.href };
 
     // read at most MAX_BYTES, the price is never at the end of a 50 MB page
     const chunks: Uint8Array[] = [];
@@ -85,7 +87,7 @@ async function fetchPage(input: string) {
       size += chunk.byteLength;
       if (size >= MAX_BYTES) break;
     }
-    return Buffer.concat(chunks).toString("utf8");
+    return { html: Buffer.concat(chunks).toString("utf8"), url: url.href };
   }
   throw new Rejected("Too many redirects");
 }
@@ -96,11 +98,16 @@ export async function GET(request: Request) {
     return Response.json({ error: "Pass a product link as ?url=" }, { status: 400 });
   }
   try {
-    const result = extractPrice(await fetchPage(target));
+    const page = await fetchPage(target);
+    const result = extractPrice(page.html, page.url);
+    if (!result && isUnavailable(page.html)) {
+      return Response.json({ error: "Unavailable", unavailable: true }, { status: 422 });
+    }
     if (!result) return Response.json({ error: NEEDS_BROWSER }, { status: 422 });
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     const error = e instanceof Rejected ? e.message : "Could not load that page";
-    return Response.json({ error }, { status: e instanceof Rejected ? 400 : 502 });
+    const gone = e instanceof Rejected && e.gone;
+    return Response.json({ error, gone }, { status: e instanceof Rejected ? 400 : 502 });
   }
 }

@@ -26,7 +26,7 @@ export async function suggest(tabId, url) {
     func: () => document.documentElement.outerHTML,
   });
   if (!html || !(isProductPage(html) || PRODUCT_URL.test(url))) return;
-  const found = extractPrice(html);
+  const found = extractPrice(html, url);
   if (!found) return;
 
   await chrome.scripting.executeScript({

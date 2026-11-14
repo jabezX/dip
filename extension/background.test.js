@@ -1,6 +1,7 @@
 // Runs the real background script against a fake `chrome` and a fake shop.
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEV_TEST } from "./core/dev.js";
 import { newItem } from "./core/items.js";
 
 const store = { items: [newItem("https://shop.test/p/1", { price: 20, currency: "EUR", title: "Thing" })] };
@@ -13,13 +14,19 @@ let rendered = ""; // what the page looks like after its scripts ran
 let tabsOpened = 0;
 const injected = []; // every scripting.executeScript call
 const updated = []; // tabs.onUpdated listeners; the first is the suggestion one
+const alarms = new Map();
 
 globalThis.DIP_TEST = true;
 globalThis.fetch = async () => shop();
 globalThis.chrome = {
-  alarms: { create() {}, onAlarm: on("alarm") },
-  runtime: { onInstalled: on("installed"), onStartup: on("startup"), onMessage: on("message") },
-  notifications: { create: (id, options) => notified.push(options), clear() {}, onClicked: on("clicked") },
+  alarms: {
+    create: async (name, info) => void alarms.set(name, info),
+    get: async (name) => alarms.get(name),
+    clear: async (name) => alarms.delete(name),
+    onAlarm: on("alarm"),
+  },
+  runtime: { getManifest: () => ({}), onInstalled: on("installed"), onStartup: on("startup"), onMessage: on("message") },
+  notifications: { create: (id, options) => notified.push({ id, ...options }), clear() {}, onClicked: on("clicked") },
   permissions: { contains: async ({ origins }) => !origins[0].includes("forbidden") },
   scripting: { executeScript: async (call) => (injected.push(call), [{ result: rendered }]) },
   tabs: {
@@ -33,17 +40,24 @@ globalThis.chrome = {
   storage: {
     local: {
       get: async () => structuredClone(store),
-      set: async (values) => void Object.assign(store, structuredClone(values)),
+      set: async (values) => {
+        const changes = Object.fromEntries(Object.keys(values).map((k) => [k, { oldValue: store[k], newValue: values[k] }]));
+        Object.assign(store, structuredClone(values));
+        listeners.storage?.(changes);
+      },
     },
+    onChanged: on("storage"),
   },
 };
 
 await import("./background.js");
+const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
 const send = (message) => new Promise((done) => listeners.message(message, null, done));
 const prices = () => store.items[0].history.map((pt) => pt.p);
+const meta = (price) => `<meta property="product:price:amount" content="${price}">`;
 
 test("a changed price is recorded and announced", async () => {
-  shop = () => new Response(`<meta property="product:price:amount" content="15.00">`);
+  shop = () => new Response(meta("15.00"));
   await send("check");
   assert.deepEqual(prices(), [20, 15]);
   assert.equal(notified.length, 1);
@@ -61,8 +75,15 @@ test("a price filled in by scripts is read from the rendered page", async () => 
   shop = () => new Response("<div id=app></div>");
   rendered = `<div id=app><span class="price">€12,50</span></div>`;
   await send("check");
+  // read off the page while the last price came from structured data: held
+  // back until a second check agrees
+  assert.deepEqual(prices(), [20, 15]);
+  assert.equal(store.items[0].pending.p, 12.5);
+  assert.equal(notified.length, 1);
+  await send("check");
   assert.deepEqual(prices(), [20, 15, 12.5]);
-  assert.equal(tabsOpened, 1);
+  assert.equal(notified.length, 2);
+  assert.equal(tabsOpened, 2);
 });
 
 test("a failed check keeps the history and stores the reason", async () => {
@@ -70,19 +91,78 @@ test("a failed check keeps the history and stores the reason", async () => {
   rendered = "";
   await send("check");
   assert.deepEqual(prices(), [20, 15, 12.5]);
-  assert.equal(store.items[0].error, "The shop answered with 503");
+  assert.equal(store.items[0].error, "Shop answered 503");
+});
+
+test("a removed page is marked unlisted, an out-of-stock one unavailable", async () => {
+  shop = () => new Response("Not found", { status: 404 });
+  await send("check");
+  assert.equal(store.items[0].gone, true);
+
+  shop = () => new Response(`<div id="availability"><span>Currently unavailable.</span></div>`);
+  await send("check");
+  assert.equal(store.items[0].gone, undefined);
+  assert.equal(store.items[0].available, false);
+
+  shop = () => new Response(meta("12.50"));
+  await send("check");
+  assert.equal(store.items[0].available, undefined); // back in stock
+  assert.deepEqual(prices(), [20, 15, 12.5]);
+});
+
+test("only due items are checked on the timer, all of them by hand", async () => {
+  store.prefs = { every: { n: 2, unit: "hours" } };
+  shop = () => new Response(meta("11.00"));
+  store.items[0].checkedAt = Date.now() - 60 * 60_000; // an hour ago: not due
+  listeners.alarm({ name: "check" });
+  await settle();
+  assert.deepEqual(prices(), [20, 15, 12.5]);
+
+  store.items[0].checkedAt = Date.now() - 3 * 60 * 60_000; // three hours ago: due
+  listeners.alarm({ name: "check" });
+  await settle();
+  assert.deepEqual(prices(), [20, 15, 12.5, 11]);
+});
+
+test("changing the interval reschedules the alarm", async () => {
+  await chrome.storage.local.set({ prefs: { every: { n: 15, unit: "minutes" } } });
+  await settle();
+  assert.equal(alarms.get("check").periodInMinutes, 15);
+  await chrome.storage.local.set({ prefs: { every: { n: 1, unit: "weeks" } } });
+  await settle();
+  assert.equal(alarms.get("check").periodInMinutes, 60); // still wakes hourly to catch up
+});
+
+test("the test product alerts every minute until it's removed", async () => {
+  const before = notified.length;
+  await chrome.storage.local.set({ items: [newItem(DEV_TEST.url, DEV_TEST.found()), ...store.items] });
+  await settle();
+  assert.equal(alarms.get("test").periodInMinutes, 1);
+
+  for (let minute = 0; minute < 3; minute++) {
+    listeners.alarm({ name: "test" });
+    await settle();
+  }
+  assert.equal(notified.length, before + 3);
+  assert.equal(new Set(notified.slice(-3).map((n) => n.id)).size, 3); // each one pops up, none replaced
+  assert.equal(store.items[1].history.length, 4); // the real product wasn't touched
+
+  await chrome.storage.local.set({ items: store.items.filter((i) => i.url !== DEV_TEST.url) });
+  await settle();
+  assert.equal(alarms.has("test"), false);
 });
 
 test("lookups for the web app", async () => {
-  shop = () => new Response(`<meta property="product:price:amount" content="9.99">`);
+  shop = () => new Response(meta("9.99"));
   assert.equal((await send({ type: "lookup", url: "https://other.test/p" })).found.price, 9.99);
-  assert.match((await send({ type: "lookup", url: "https://forbidden.test/p" })).error, /isn't allowed/);
+  assert.match((await send({ type: "lookup", url: "https://forbidden.test/p" })).error, /No access/);
   assert.match((await send({ type: "lookup", url: "file:///etc/passwd" })).error, /Only http/);
+  shop = () => new Response("", { status: 410 });
+  assert.equal((await send({ type: "lookup", url: "https://other.test/gone" })).gone, true);
 });
 
 // ---------- "Watch this price?" suggestions ----------
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
 const pageLoaded = async (url) => {
   injected.length = 0;
   updated[0](3, { status: "complete" }, { url });
