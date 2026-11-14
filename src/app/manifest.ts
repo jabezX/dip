@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Watch prices. Privately.",
     start_url: "/",
     display: "standalone",
-    background_color: "#000000",
-    theme_color: "#000000",
+    background_color: "#0a0a0c",
+    theme_color: "#0a0a0c",
     // "Share" a product page from the browser straight into the list
     share_target: { action: "/", method: "GET", params: { title: "title", text: "text", url: "url" } },
     icons: [

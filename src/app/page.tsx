@@ -1,20 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { formatPrice } from "@core/items";
-import { addItem, checkItems, importItems, removeItem, useItems } from "@/lib/store";
-import { Delta, Sparkline } from "./sparkline";
+import { addItem, checkItems, hasExtension, importItems, useItems } from "@/lib/store";
+import { Icon, Logo } from "./icons";
+import { ItemCard } from "./item-card";
 
 const noSubscribe = () => () => {};
-const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 export default function Home() {
   const items = useItems();
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
   const [checking, setChecking] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [extension, setExtension] = useState<boolean>();
   const fileInput = useRef<HTMLInputElement>(null);
 
   const stored = useSyncExternalStore(
@@ -28,6 +28,7 @@ export default function Home() {
   useEffect(() => {
     // not in dev: a caching worker and hot reload don't get along
     if (process.env.NODE_ENV === "production") navigator.serviceWorker?.register("/sw.js");
+    hasExtension().then(setExtension);
   }, []);
 
   // opened through the share sheet (see share_target in manifest.ts)
@@ -46,7 +47,10 @@ export default function Home() {
       if (document.visibilityState === "visible") checkItems(true);
     };
     tick();
-    const timer = setInterval(tick, 5 * 60_000);
+    const timer = setInterval(() => {
+      tick();
+      setNow(Date.now());
+    }, 60_000);
     document.addEventListener("visibilitychange", tick);
     return () => {
       clearInterval(timer);
@@ -58,6 +62,21 @@ export default function Home() {
     setChecking(true);
     await checkItems();
     setChecking(false);
+    setNow(Date.now());
+  }
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await addItem(url.trim());
+      setUrl("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function exportList() {
@@ -81,110 +100,144 @@ export default function Home() {
     }
   }
 
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await addItem(url.trim());
-      setUrl("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setBusy(false);
-    }
-  }
+  // how each item stands against the price it was first seen at
+  const drops = items.map((i) => (i.history[i.history.length - 1].p - i.history[0].p) / (i.history[0].p || 1));
+  const cheaper = drops.filter((d) => d < 0).length;
+  const best = Math.min(0, ...drops);
 
   return (
-    <main>
-      <header>
-        <h1>Dip</h1>
-        {items.length > 0 && (
-          <button className="plain" onClick={refresh} disabled={checking}>
-            {checking ? "Checking…" : "Refresh"}
+    <>
+      <header className="bar">
+        <div className="brand">
+          <Logo />
+          <span>Dip</span>
+        </div>
+        <nav>
+          {alerts === "default" && (
+            <button
+              className="icon"
+              title="Turn on price alerts"
+              aria-label="Turn on price alerts"
+              onClick={async () => setAsked(await Notification.requestPermission())}
+            >
+              <Icon name="bell" />
+            </button>
+          )}
+          {items.length > 0 && (
+            <button className="icon" title="Export list" aria-label="Export list" onClick={exportList}>
+              <Icon name="download" />
+            </button>
+          )}
+          <button
+            className="icon"
+            title="Import list"
+            aria-label="Import list"
+            onClick={() => fileInput.current?.click()}
+          >
+            <Icon name="upload" />
           </button>
-        )}
+          <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={importList} />
+          {items.length > 0 && (
+            <button
+              className="icon"
+              title="Check prices now"
+              aria-label="Check prices now"
+              onClick={refresh}
+              disabled={checking}
+            >
+              <Icon name="refresh" className={checking ? "spin" : undefined} />
+            </button>
+          )}
+        </nav>
       </header>
 
-      <form onSubmit={add}>
-        <input
-          type="url"
-          required
-          placeholder="Paste a product link"
-          aria-label="Product link"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <button disabled={busy}>{busy ? "Adding…" : "Watch"}</button>
-      </form>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-
-      {items.length === 0 ? (
-        <p className="empty">Nothing here yet. Paste a product link to start watching its price.</p>
-      ) : (
-        <ul className="list">
-          {items.map((item) => (
-            <li key={item.id}>
-              <details>
-                <summary>
-                  <span className="what">
-                    <span className="title">{item.title}</span>
-                    <span className={item.error ? "sub up" : "sub"}>
-                      {item.error ?? new URL(item.url).hostname.replace(/^www\./, "")}
-                    </span>
-                  </span>
-                  <Sparkline points={item.history} />
-                  <span className="price">
-                    {formatPrice(item.history[item.history.length - 1].p, item.currency)}
-                    <Delta points={item.history} />
-                  </span>
-                </summary>
-                <div className="more">
-                  <ol className="history">
-                    {[...item.history].reverse().map((pt) => (
-                      <li key={pt.t}>
-                        <span>{when(pt.t)}</span>
-                        <span>{formatPrice(pt.p, item.currency)}</span>
-                      </li>
-                    ))}
-                  </ol>
-                  <p className="sub">Checked {when(item.checkedAt)}</p>
-                  <div className="actions">
-                    <a href={item.url} target="_blank" rel="noreferrer">
-                      Open page
-                    </a>
-                    <button className="danger" onClick={() => removeItem(item.id)}>
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              </details>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <footer>
-        {alerts === "default" && (
-          <button className="plain" onClick={async () => setAsked(await Notification.requestPermission())}>
-            Turn on price alerts
-          </button>
+      <main>
+        {items.length === 0 && (
+          <section className="hero">
+            <h1>
+              Know when the
+              <br />
+              price <em>dips</em>.
+            </h1>
+            <p>Paste a product link. Dip remembers the price, keeps checking, and tells you the moment it moves.</p>
+          </section>
         )}
+
         {items.length > 0 && (
-          <button className="plain" onClick={exportList}>
-            Export
-          </button>
+          <section className="tiles" aria-label="Summary">
+            <div className="card tile">
+              <span className="label">Watching</span>
+              <span className="value">{items.length}</span>
+            </div>
+            <div className="card tile">
+              <span className="label">Cheaper now</span>
+              <span className={`value ${cheaper ? "down" : ""}`}>{cheaper}</span>
+            </div>
+            <div className="card tile">
+              <span className="label">Best drop</span>
+              <span className={`value ${best < 0 ? "down" : ""}`}>
+                {best < 0 ? `−${Math.abs(best * 100).toFixed(0)}%` : "—"}
+              </span>
+            </div>
+          </section>
         )}
-        <button className="plain" onClick={() => fileInput.current?.click()}>
-          Import
-        </button>
-        <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={importList} />
-        <p className="sub">Your list and price history stay on this device.</p>
-      </footer>
-    </main>
+
+        <form className="card add" onSubmit={add}>
+          <Icon name="link" />
+          <input
+            type="url"
+            required
+            placeholder="Paste a product link"
+            aria-label="Product link"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button disabled={busy}>
+            {busy ? <Icon name="refresh" className="spin" /> : <Icon name="plus" />}
+            {busy ? "Looking" : "Watch"}
+          </button>
+        </form>
+
+        {error && (
+          <p className="notice bad" role="alert">
+            {error}
+          </p>
+        )}
+        {extension === false && (
+          <p className="notice">
+            <Icon name="bolt" size={16} />
+            <span>
+              <b>Works best with the Dip extension.</b> Amazon, eBay and many big shops only show prices to a real
+              browser. With the extension installed, lookups run in yours.
+            </span>
+          </p>
+        )}
+
+        {items.length > 0 ? (
+          <ul className="list">
+            {items.map((item) => (
+              <ItemCard key={item.id} item={item} now={now} />
+            ))}
+          </ul>
+        ) : (
+          <ol className="steps">
+            <li className="card">
+              <b>1</b>
+              <span>Paste a link to any product page</span>
+            </li>
+            <li className="card">
+              <b>2</b>
+              <span>Dip records the price and re-checks it</span>
+            </li>
+            <li className="card">
+              <b>3</b>
+              <span>You get an alert when it changes</span>
+            </li>
+          </ol>
+        )}
+
+        <footer>Your list and price history stay on this device. No account, no tracking.</footer>
+      </main>
+    </>
   );
 }
