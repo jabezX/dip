@@ -7,16 +7,31 @@
   </head>
   <body>
     <header>
-      <h1>Dip</h1>
-      <button id="check" class="plain">Refresh</button>
+      <div class="brand"><img src="icons/48.png" width="24" height="24" alt="" />Dip</div>
+      <nav>
+        <button id="export" class="icon" title="Export list" aria-label="Export list">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+        </button>
+        <button id="check" class="icon" title="Check prices now" aria-label="Check prices now">
+          <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v6h-6" /></svg>
+        </button>
+      </nav>
     </header>
-    <button id="watch">Watch this page</button>
+
+    <button id="watch">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+      Watch this page
+    </button>
     <p id="status" role="status"></p>
+
+    <button id="allow" class="notice" hidden>
+      <b>Let Dip check any shop</b>
+      <span>One-time permission. Needed for the Dip web app to look prices up through this extension.</span>
+    </button>
+
     <ul id="list"></ul>
-    <p id="empty">Open a product page and press “Watch this page”.</p>
-    <footer>
-      <button id="export" class="plain">Export</button>
-    </footer>
-    <scripttype="module" src="popup.js"></script>
+    <p id="empty">Nothing watched yet.<br />Open a product page and press <b>Watch this page</b>.</p>
+
+    <script type="module" src="popup.js"></script>
   </body>
 </html>

@@ -1,14 +1,15 @@
 /* Same tokens as the web app (src/app/globals.css). */
 :root {
   color-scheme: light dark;
-  --bg: light-dark(#f5f5f7, #000);
-  --card: light-dark(#fff, #1c1c1e);
-  --text: light-dark(#1d1d1f, #f5f5f7);
-  --muted: light-dark(#6e6e73, #98989d);
-  --line: light-dark(#e5e5ea, #2c2c2e);
-  --accent: light-dark(#007aff, #0a84ff);
-  --down: light-dark(#248a3d, #30d158);
-  --up: light-dark(#d70015, #ff453a);
+  --bg: light-dark(#f4f4f6, #0a0a0c);
+  --card: light-dark(#fff, #151518);
+  --soft: light-dark(#f0f0f3, #1f1f24);
+  --text: light-dark(#0b0b0f, #f4f4f6);
+  --muted: light-dark(#6b7080, #9395a1);
+  --line: light-dark(#e6e7ec, #26262c);
+  --accent: light-dark(#12a150, #30d158);
+  --down: light-dark(#0e8a43, #30d158);
+  --up: light-dark(#d92d20, #ff5a4f);
 }
 
 * {
@@ -17,9 +18,11 @@
 }
 
 body {
-  width: 340px;
+  width: 380px;
   padding: 14px;
-  background: var(--bg);
+  background:
+    radial-gradient(80% 160px at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent),
+    var(--bg);
   color: var(--text);
   font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -28,27 +31,54 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-h1 {
-  font-size: 22px;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
+nav {
+  display: flex;
+  gap: 6px;
+}
+
+svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 0;
-  border-radius: 10px;
-  padding: 8px 14px;
-  background: var(--accent);
-  color: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: var(--text);
+  color: var(--bg);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
+button:active {
+  transform: scale(0.97);
+}
+
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: default;
 }
 
@@ -57,11 +87,28 @@ button:disabled {
   outline-offset: 2px;
 }
 
-.plain {
-  padding: 4px 0;
-  background: none;
-  color: var(--accent);
-  font-weight: 400;
+.icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--text);
+}
+
+.icon:hover {
+  background: var(--soft);
+}
+
+.icon:disabled svg {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 #watch {
@@ -70,23 +117,47 @@ button:disabled {
 
 #status:not(:empty) {
   margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--up) 10%, transparent);
   color: var(--up);
 }
 
+.notice {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--muted);
+  font-weight: 400;
+  text-align: left;
+}
+
+.notice[hidden] {
+  display: none;
+}
+
+.notice b {
+  display: block;
+  color: var(--text);
+}
+
 #empty {
-  margin: 28px 0 14px;
+  margin: 28px 0 18px;
   text-align: center;
   color: var(--muted);
 }
 
 #list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
   max-height: 380px;
-  margin-top: 12px;
-  padding: 0;
+  margin-top: 6px;
+  padding: 6px 4px 0 0; /* room for the remove buttons */
   overflow-y: auto;
   list-style: none;
-  background: var(--card);
-  border-radius: 12px;
 }
 
 #list:empty,
@@ -95,14 +166,32 @@ button:disabled {
 }
 
 #list li {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
 }
 
-#list li + li {
-  border-top: 1px solid var(--line);
+.thumb {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  object-fit: contain;
+}
+
+.thumb.letter {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 30%, var(--card)), var(--soft));
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .what {
@@ -119,39 +208,63 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
+.what span:first-child {
+  font-weight: 600;
+}
+
 .sub {
   font-size: 12px;
   color: var(--muted);
 }
 
-.price {
-  text-align: right;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.price small {
-  display: block;
-  font-size: 11px;
-}
-
-.down {
-  color: var(--down);
-}
-
-.up {
+.sub.up {
   color: var(--up);
 }
 
-.remove {
-  padding: 2px 6px;
-  background: none;
-  color: var(--muted);
-  font-size: 16px;
-  font-weight: 400;
+.money {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-footer {
-  margin-top: 8px;
-  text-align: center;
+.pill {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pill.down {
+  background: color-mix(in srgb, var(--down) 14%, transparent);
+  color: var(--down);
+}
+
+.pill.up {
+  background: color-mix(in srgb, var(--up) 12%, transparent);
+  color: var(--up);
+}
+
+/* shown on hover or keyboard focus */
+.remove {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+}
+
+#list li:hover .remove,
+.remove:focus-visible {
+  opacity: 1;
 }

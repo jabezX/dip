@@ -1,6 +1,8 @@
 import { extractPrice } from "./core/extract.js";
 import { change, formatPrice, newItem } from "./core/items.js";
 
+const ANY_SHOP = { origins: ["*://*/*"] };
+
 const $ = (id) => document.getElementById(id);
 const load = async () => (await chrome.storage.local.get("items")).items ?? [];
 const save = (items) => chrome.storage.local.set({ items });
@@ -12,12 +14,21 @@ function el(tag, props, ...children) {
   return node;
 }
 
+function thumb(item, host) {
+  const letter = () => el("span", { className: "thumb letter" }, host[0]?.toUpperCase() ?? "");
+  if (!item.image) return letter();
+  const img = el("img", { className: "thumb", src: item.image, alt: "", referrerPolicy: "no-referrer" });
+  img.onerror = () => img.replaceWith(letter());
+  return img;
+}
+
 function row(item) {
+  const host = new URL(item.url).hostname.replace(/^www\./, "");
   const pct = change(item.history);
-  const price = el("span", { className: "price" }, formatPrice(item.history.at(-1).p, item.currency));
+  const money = el("span", { className: "money" }, formatPrice(item.history.at(-1).p, item.currency));
   if (pct != null) {
     const delta = `${pct < 0 ? "▼" : "▲"} ${Math.abs(pct).toFixed(1)}%`;
-    price.append(el("small", { className: pct < 0 ? "down" : "up" }, delta));
+    money.append(el("span", { className: `pill ${pct < 0 ? "down" : "up"}` }, delta));
   }
   const remove = el("button", { className: "remove", title: "Remove", ariaLabel: `Remove ${item.title}` }, "×");
   remove.onclick = async () => save((await load()).filter((i) => i.id !== item.id));
@@ -25,20 +36,21 @@ function row(item) {
   return el(
     "li",
     {},
+    thumb(item, host),
     el(
       "a",
       { className: "what", href: item.url, target: "_blank", title: item.title },
       el("span", {}, item.title),
-      el("span", { className: item.error ? "sub up" : "sub" }, item.error ?? new URL(item.url).hostname),
+      el("span", { className: item.error ? "sub up" : "sub" }, item.error ?? host),
     ),
-    price,
+    money,
     remove,
   );
 }
 
 /**
- * Background checks can only fetch shops the user has allowed, one site at a
- * time. Must run inside a click handler.
+ * Background checks can only fetch shops the user has allowed.
+ * Must run inside a click handler.
  */
 function allow(urls) {
   const origins = [...new Set(urls.map((u) => `${new URL(u).origin}/*`))];
@@ -47,9 +59,15 @@ function allow(urls) {
 
 async function render() {
   $("list").replaceChildren(...(await load()).map(row));
+  $("allow").hidden = await chrome.permissions.contains(ANY_SHOP);
 }
 chrome.storage.onChanged.addListener(render);
 render();
+
+$("allow").onclick = async () => {
+  await chrome.permissions.request(ANY_SHOP).catch(() => false);
+  render();
+};
 
 $("watch").onclick = async () => {
   $("status").textContent = "";
@@ -82,7 +100,7 @@ $("export").onclick = async () => {
   URL.revokeObjectURL(link.href);
 };
 
-$("check").onclick =async () => {
+$("check").onclick = async () => {
   await allow((await load()).map((i) => i.url)); // silent if already granted
   $("check").disabled = true;
   await chrome.runtime.sendMessage("check");
