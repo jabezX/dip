@@ -9,6 +9,10 @@ const PATHS = {
   link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
   chevron: "m6 9 6 6 6-6",
   bolt: "M13 2 3 14h9l-1 8 10-12h-9l1-8z",
+  check: "M20 6 9 17l-5-5",
+  alert: "M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z",
+  close: "M18 6 6 18M6 6l12 12",
+  search: "M21 21l-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14z",
 };
 
 export function Icon({ name, size = 18, className }: { name: keyof typeof PATHS; size?: number; className?: string }) {
