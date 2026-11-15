@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.1
+
+Fixes from testing the extension in a real browser against live shops.
+
+- Amazon: a sponsored product's price could be read as the product's. Only
+  Amazon's main price boxes are read now; "No featured offers" and "cannot
+  be shipped" count as unavailable
+- Prices with the cents in a separate element ("349 .99") were read without
+  the cents
+- A "not found" page served as a normal page could yield a recommended
+  product's price; such pages are now marked unlisted
+- Prices in "you may also like" and sponsored sections are ignored, and a page
+  that shows several prices without naming one is no longer guessed
+- Some shops change the price with scripts after loading, so the plain page
+  and the open tab disagree; that showed up as false price changes. Each
+  product is now always re-checked the same way it was added
+- A refresh pressed during a running check is queued instead of dropped
+- Price checks that need the page's scripts use a minimized window instead of
+  a tab
+- The popup no longer re-downloads pictures on every redraw
+- Currency is found when a shop leaves it out of its product data
+
 ## 0.3.0
 
 - Fix: a monthly instalment ("$33.29/mo.") could be read as the price and

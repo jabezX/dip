@@ -79,6 +79,14 @@ A wrong price that triggers a "price drop" alert is worse than no alert, so:
   than the wrong one.
 - **On Amazon** only the main price box counts; the shipping tables, other
   sellers and payment-plan widgets elsewhere on the page are ignored.
+- **Other products' prices are never used.** Sponsored cards, "you may also
+  like" sections and "page not found" pages are skipped. On Amazon only the
+  main price boxes count.
+- **Every check reads the page the same way.** Some shops change the price
+  with scripts after the page loads, so the plain page and the open tab can
+  disagree. When a product is added, Dip notes which version it was read from
+  and always re-checks that one, so you never get an alert for a difference
+  that is only in how the page was read.
 - **Surprising drops are confirmed first.** A drop of more than 40%, or a price
   read off the page that disagrees with the shop's structured data, is held
   back and only recorded (and alerted) when the next check sees it again.
@@ -216,7 +224,9 @@ npm run lint
   still be wrong (a "from" price, a different variant). Big moves are confirmed
   before they are recorded, small ones are not.
 - For shops that fill prices in with scripts, the extension briefly opens the
-  page in a background tab on each check.
+  page in a minimized window on each check.
+- Amazon only shows prices for products it ships to you: on another country's
+  Amazon, many products read as unavailable.
 - A shop that publishes a wrong or stale price in its structured data will
   show that price here.
 - Firefox and Safari extensions aren't supported yet.
