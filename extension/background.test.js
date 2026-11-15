@@ -29,8 +29,12 @@ globalThis.chrome = {
   notifications: { create: (id, options) => notified.push({ id, ...options }), clear() {}, onClicked: on("clicked") },
   permissions: { contains: async ({ origins }) => !origins[0].includes("forbidden") },
   scripting: { executeScript: async (call) => (injected.push(call), [{ result: rendered }]) },
+  windows: {
+    create: async () => (tabsOpened++, { id: 70, tabs: [{ id: 7 }] }),
+    remove: async () => {},
+  },
   tabs: {
-    create: async () => (tabsOpened++, { id: 7 }),
+    create: async () => ({ id: 8 }),
     remove: async () => {},
     onUpdated: {
       addListener: (fn) => (updated.push(fn), queueMicrotask(() => fn(7, { status: "complete" }))),
@@ -152,6 +156,49 @@ test("the test product alerts every minute until it's removed", async () => {
   assert.equal(alarms.has("test"), false);
 });
 
+test("a product read from the plain page is never re-read from the rendered one", async () => {
+  // the plain page and the page after its scripts show different offers
+  const item = { ...newItem("https://twoprices.test/p", { price: 409, currency: "USD", title: "CPU" }), via: "fetch" };
+  await chrome.storage.local.set({ items: [item] });
+  shop = () => new Response("<div id=app></div>");
+  rendered = `<span class="price-current">$349.99</span>`;
+  const opened = tabsOpened;
+  await send("check");
+  assert.deepEqual(store.items[0].history.map((pt) => pt.p), [409]);
+  assert.equal(store.items[0].error, "No price found");
+  assert.equal(tabsOpened, opened, "no rendered read");
+
+  // and one read from the rendered page is always rendered
+  await chrome.storage.local.set({ items: [{ ...item, via: "render", history: [{ t: 1, p: 349.99 }] }] });
+  shop = () => new Response(`<span class="price-current">$409.00</span>`);
+  await send("check");
+  assert.deepEqual(store.items[0].history.map((pt) => pt.p), [349.99]);
+  assert.equal(store.items[0].error, undefined);
+});
+
+test("probe: added from a tab, checked the cheap way only if the plain page agrees", async () => {
+  const a = newItem("https://same.test/p", { price: 10, currency: "EUR", title: "A" });
+  const b = newItem("https://differs.test/p", { price: 10, currency: "EUR", title: "B" });
+  await chrome.storage.local.set({ items: [a, b] });
+  shop = () => new Response(meta("10.00"));
+  listeners.message({ type: "probe", id: a.id }, null, () => {});
+  await settle();
+  shop = () => new Response(meta("12.00"));
+  listeners.message({ type: "probe", id: b.id }, null, () => {});
+  await settle();
+  assert.equal(store.items.find((i) => i.id === a.id).via, "fetch");
+  assert.equal(store.items.find((i) => i.id === b.id).via, "render");
+});
+
+test("a page that says \"not found\" is unlisted, not some other product's price", async () => {
+  await chrome.storage.local.set({ items: [newItem("https://soft404.test/p", { price: 20, currency: "USD", title: "Mug" })] });
+  shop = () =>
+    new Response(`<title>Product not found</title><h1>Product not found</h1><span class="current-price">$3.99</span>`);
+  await send("check");
+  assert.equal(store.items[0].gone, true);
+  assert.deepEqual(store.items[0].history.map((pt) => pt.p), [20]);
+});
+
 test("lookups for the web app", async () => {
   shop = () => new Response(meta("9.99"));
   assert.equal((await send({ type: "lookup", url: "https://other.test/p" })).found.price, 9.99);
@@ -209,4 +256,12 @@ test("'not now' and 'don't ask on this site' are remembered", async () => {
   store.prefs = { suggest: false };
   await pageLoaded("https://newshop.test/p/plate");
   assert.equal(injected.length, 0);
+});
+
+test("a check asked for while another runs waits its turn instead of being dropped", async () => {
+  await chrome.storage.local.set({ items: [newItem("https://queue.test/p", { price: 5, currency: "EUR", title: "Q" })] });
+  let fetches = 0;
+  shop = () => (fetches++, new Response(meta("5.00")));
+  await Promise.all([send("check"), send("check")]);
+  assert.equal(fetches, 2);
 });

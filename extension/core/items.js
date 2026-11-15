@@ -18,6 +18,7 @@
  * @property {"data" | "guess"} [source]  how the price was read (see extract.js)
  * @property {Point} [pending]        a surprising price, waiting to be seen a second time
  * @property {string} [list]          the user's own grouping
+ * @property {"fetch" | "render"} [via] how checks read the page (see lookup in background.js)
  */
 /**
  * @typedef {object} Found
@@ -28,6 +29,7 @@
  * @property {string | null} [icon]
  * @property {boolean | null} [available]
  * @property {"data" | "guess"} [source]
+ * @property {"fetch" | "render"} [via]
  */
 
 const MAX_POINTS = 500;
@@ -72,6 +74,7 @@ export function newItem(url, found, now = Date.now()) {
     icon: found.icon ?? null,
     available: found.available === false ? false : undefined,
     source: found.source,
+    via: found.via,
     history: [{ t: now, p: found.price }],
     checkedAt: now,
   };

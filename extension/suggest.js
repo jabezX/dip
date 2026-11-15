@@ -36,11 +36,14 @@ export async function suggest(tabId, url) {
   });
 }
 
-/** The card's buttons report back here. */
+/** The card's buttons report back here. Returns the id of a newly watched product. */
 export async function answer({ answer, url, found }) {
   const { items, prefs } = await read();
   if (answer === "watch") {
-    if (!isWatched(items, url)) await chrome.storage.local.set({ items: [newItem(url, found), ...items] });
+    if (isWatched(items, url)) return null;
+    const item = newItem(url, found);
+    await chrome.storage.local.set({ items: [item, ...items] });
+    return item.id;
   } else if (answer === "mute") {
     await chrome.storage.local.set({ prefs: { ...prefs, muted: [...(prefs.muted ?? []), new URL(url).hostname] } });
   } else {

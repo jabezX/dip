@@ -1,5 +1,5 @@
 import { DEV_TEST } from "./core/dev.js";
-import { extractPrice, isUnavailable } from "./core/extract.js";
+import { extractPrice, isNotFound, isUnavailable } from "./core/extract.js";
 import { describeChange, everyMinutes, failed, isDue, record } from "./core/items.js";
 import { answer, suggest } from "./suggest.js";
 
@@ -54,7 +54,12 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
 chrome.runtime.onMessage.addListener((message, _sender, reply) => {
   // the buttons on the suggestion card
   if (message?.type === "suggestion") {
-    answer(message);
+    answer(message).then((id) => id && probe(id));
+    return;
+  }
+  // the popup just added a product from the open tab
+  if (message?.type === "probe") {
+    probe(message.id);
     return;
   }
   // the popup's refresh button
@@ -64,7 +69,7 @@ chrome.runtime.onMessage.addListener((message, _sender, reply) => {
   }
   // the web app, through bridge.js
   if (message?.type === "lookup") {
-    lookup(message.url).then(
+    lookup(message.url, { via: message.via }).then(
       (found) => reply({ found }),
       (e) => reply({ error: e.message, gone: e.gone, unavailable: e.unavailable }),
     );
@@ -80,44 +85,82 @@ chrome.notifications.onClicked.addListener(async (id) => {
 
 // ---------- looking a price up ----------
 
+const GONE = () => fail("Unlisted", { gone: true });
+const OUT = () => fail("Unavailable", { unavailable: true });
+
+/**
+ * Read a product's price. `item.via` says how: "fetch" (the plain HTML) or
+ * "render" (the page after its scripts ran). It is settled when the product
+ * is added (see probe), so every check reads the same version of the page
+ * the user saw: some shops change the price with scripts after loading.
+ */
 async function lookup(url, item) {
   if (TEST && url === TEST.url) return TEST.found(item?.history.at(-1)?.p);
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) throw fail("Only http(s) links are supported");
   if (!(await chrome.permissions.contains({ origins: [`${new URL(url).origin}/*`] }))) {
     throw fail("No access to this shop");
   }
+  if (item?.via === "render") return fromTab(url);
 
   let reason = "No price found";
   try {
     // with cookies, so the shop sees the same visitor it sees in a tab
     const res = await fetch(url, { credentials: "include", signal: AbortSignal.timeout(20_000) });
-    if (res.status === 404 || res.status === 410) throw fail("Unlisted", { gone: true });
+    if (res.status === 404 || res.status === 410) throw GONE();
     if (res.ok) {
       const html = await res.text();
       const found = extractPrice(html, res.url || url);
-      if (found) return found;
-      if (isUnavailable(html)) throw fail("Unavailable", { unavailable: true });
+      if (found) return { ...found, via: "fetch" };
+      if (isNotFound(html)) throw GONE();
+      if (isUnavailable(html)) throw OUT();
     } else {
       reason = `Shop answered ${res.status}`;
     }
   } catch (e) {
     if (e.gone || e.unavailable) throw e;
-    reason = "Shop unreachable";
+    if (!/^Shop answered/.test(reason)) reason = "Shop unreachable";
   }
-
+  // a product read from the plain page stays that way: the rendered page may
+  // show a different offer, and that would look like a price change
+  if (item?.via === "fetch") throw fail(reason);
   // Nothing in the plain HTML. Plenty of shops fill prices in with scripts,
   // so let the page actually run.
-  const rendered = await renderedHtml(url).catch(() => "");
-  const found = rendered && extractPrice(rendered, url);
-  if (found) return found;
-  if (rendered && isUnavailable(rendered)) throw fail("Unavailable", { unavailable: true });
-  throw fail(reason);
+  return fromTab(url, reason);
 }
 
-// ponytail: a real, inactive tab; it shows in the tab strip for a few
-// seconds. Only reached when the plain fetch finds nothing.
+async function fromTab(url, reason = "No price found") {
+  const html = await renderedHtml(url).catch(() => "");
+  const found = html && extractPrice(html, url);
+  if (found) return { ...found, via: "render" };
+  if (html && isNotFound(html)) throw GONE();
+  if (html && isUnavailable(html)) throw OUT();
+  // keep what the plain fetch learned ("Shop answered 503") over a vaguer reason
+  throw fail(!html && reason === "No price found" ? "Shop unreachable" : reason);
+}
+
+/**
+ * Added from an open tab, i.e. from the rendered page. If the plain HTML says
+ * the same, checks can use the cheap fetch; otherwise they render the page.
+ */
+async function probe(id) {
+  const item = (await load()).find((i) => i.id === id);
+  if (!item || item.via || (TEST && item.url === TEST.url)) return;
+  let via = "render";
+  try {
+    const res = await fetch(item.url, { credentials: "include", signal: AbortSignal.timeout(20_000) });
+    const found = res.ok && extractPrice(await res.text(), res.url || item.url);
+    if (found && found.price === item.history.at(-1).p) via = "fetch";
+  } catch {
+    // unreachable without scripts: render it
+  }
+  await chrome.storage.local.set({ items: (await load()).map((i) => (i.id === id ? { ...i, via } : i)) });
+}
+
+// ponytail: a real page in a minimized window, for a few seconds. Only
+// for shops whose price needs the page's scripts.
 async function renderedHtml(url) {
-  const tab = await chrome.tabs.create({ url, active: false });
+  const win = await chrome.windows.create({ url, focused: false, state: "minimized" });
+  const tab = win.tabs[0];
   ours.add(tab.id);
   try {
     await new Promise((resolve) => {
@@ -138,38 +181,39 @@ async function renderedHtml(url) {
     return result;
   } finally {
     ours.delete(tab.id);
-    chrome.tabs.remove(tab.id).catch(() => {});
+    chrome.windows.remove(win.id).catch(() => {});
   }
 }
 const RENDER_SETTLE_MS = globalThis.DIP_TEST ? 0 : 1500;
 
 // ---------- checking the list ----------
 
-let running = false;
+// Checks run one after another: a refresh pressed during the hourly check
+// waits its turn instead of being dropped.
+let queue = Promise.resolve();
+function checkAll(options) {
+  const run = queue.then(() => checkNow(options));
+  queue = run.catch(() => {});
+  return run;
+}
 
 // ponytail: one request at a time. Plenty for a personal list; batch per
 // host if someone watches hundreds of pages.
-async function checkAll({ dueOnly = false, only } = {}) {
-  if (running) return;
-  running = true;
-  try {
-    const { every } = await prefs();
-    for (const item of await load()) {
-      if (only && !only(item)) continue;
-      if (dueOnly && !isDue(item, every)) continue;
-      const found = await lookup(item.url, item).catch((e) => e);
-      // re-read: the popup may have changed the list while we were fetching
-      const items = (await load()).map((i) => {
-        if (i.id !== item.id) return i;
-        if (found instanceof Error) return failed(i, found);
-        const { item: next, previous } = record(i, found);
-        if (previous != null) notify(next, previous);
-        return next;
-      });
-      await chrome.storage.local.set({ items });
-    }
-  } finally {
-    running = false;
+async function checkNow({ dueOnly = false, only } = {}) {
+  const { every } = await prefs();
+  for (const item of await load()) {
+    if (only && !only(item)) continue;
+    if (dueOnly && !isDue(item, every)) continue;
+    const found = await lookup(item.url, item).catch((e) => e);
+    // re-read: the popup may have changed the list while we were fetching
+    const items = (await load()).map((i) => {
+      if (i.id !== item.id) return i;
+      if (found instanceof Error) return failed(i, found);
+      const { item: next, previous } = record(i, found);
+      if (previous != null) notify(next, previous);
+      return next;
+    });
+    await chrome.storage.local.set({ items });
   }
 }
 
