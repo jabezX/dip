@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+- The lockfile now installs with `npm ci` on Linux and with npm 10
+- Source archives (GitHub's "Download ZIP") include everything needed to
+  build; only the extension package leaves out tests and the test product
+
 ## 0.3.1
 
 Fixes from testing the extension in a real browser against live shops.
