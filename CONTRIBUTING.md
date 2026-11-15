@@ -6,7 +6,7 @@ Thanks for taking a look. Dip is small on purpose, and the bar for a change is
 ## Getting set up
 
 ```sh
-git clone https://github.com/<you>/dip
+git clone https://github.com/jabezX/dip
 cd dip
 npm install
 npm run dev      # web app on http://localhost:3000

@@ -4,6 +4,14 @@
   "private": true,
   "description": "Watch prices. Privately.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jabezX/dip.git"
+  },
+  "homepage": "https://github.com/jabezX/dip#readme",
+  "bugs": {
+    "url": "https://github.com/jabezX/dip/issues"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

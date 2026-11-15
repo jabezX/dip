@@ -128,7 +128,7 @@ popup once and press **Let Dip check any shop**.
 Requires Node.js 20.9 or newer.
 
 ```sh
-git clone https://github.com/<you>/dip.git
+git clone https://github.com/jabezX/dip.git
 cd dip
 npm install
 npm run dev

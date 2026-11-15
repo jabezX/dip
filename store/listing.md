@@ -78,4 +78,4 @@ The extension does not collect or use any user data. Tick none of the data categ
 
 **Privacy policy URL**
 
-`https://github.com/<you>/dip/blob/main/PRIVACY.md` (after the repository is public)
+https://github.com/jabezX/dip/blob/main/PRIVACY.md
