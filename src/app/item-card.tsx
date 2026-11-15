@@ -15,7 +15,9 @@ const STATUS = {
 
 /** Product photo, else the shop's icon, else its favicon, else a letter. */
 function Thumb({ item }: { item: Item }) {
-  const sources = [item.image, item.icon, `${new URL(item.url).origin}/favicon.ico`].filter(Boolean) as string[];
+  const sources = [
+    ...new Set([item.image, item.icon, `${new URL(item.url).origin}/favicon.ico`].filter(Boolean) as string[]),
+  ];
   const [index, setIndex] = useState(0);
   if (index >= sources.length) return <span className="thumb letter">{host(item.url)[0]?.toUpperCase()}</span>;
   const logo = sources[index] !== item.image;

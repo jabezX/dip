@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { BlockList } from "node:net";
-import { extractPrice, isUnavailable } from "@core/extract";
+import { extractPrice, isNotFound, isUnavailable } from "@core/extract";
 
 // Stateless: fetch the page, read the price, forget everything.
 // It exists only because browsers can't fetch shop pages cross-origin.
@@ -100,6 +100,9 @@ export async function GET(request: Request) {
   try {
     const page = await fetchPage(target);
     const result = extractPrice(page.html, page.url);
+    if (!result && isNotFound(page.html)) {
+      return Response.json({ error: "Unlisted", gone: true }, { status: 404 });
+    }
     if (!result && isUnavailable(page.html)) {
       return Response.json({ error: "Unavailable", unavailable: true }, { status: 422 });
     }

@@ -113,7 +113,7 @@ function subscribe(listener: () => void) {
 export const useItems = () => useSyncExternalStore(subscribe, getItems, () => EMPTY);
 
 /** Ask the Dip extension something through its content script (extension/bridge.js). */
-function ask<T>(message: { dip: string; url?: string }, ms: number): Promise<T> {
+function ask<T>(message: { dip: string; url?: string; via?: string }, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
     const stop = () => {
@@ -148,7 +148,7 @@ async function lookup(url: string, item?: Item): Promise<Found> {
   if (TEST && url === TEST.url) return TEST.found(item?.history[item.history.length - 1].p);
   // The extension reads the shop from this browser, which works on far more
   // shops than a server does. Without it, fall back to /api/price.
-  if (await hasExtension()) return ask<Found>({ dip: "lookup", url }, 60_000);
+  if (await hasExtension()) return ask<Found>({ dip: "lookup", url, via: item?.via }, 60_000);
   const res = await fetch(`/api/price?url=${encodeURIComponent(url)}`);
   const data = await res.json();
   if (!res.ok) throw lookupError(data);
