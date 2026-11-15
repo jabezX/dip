@@ -1,5 +1,5 @@
 import { DEV_TEST } from "./core/dev.js";
-import { extractPrice, isUnavailable } from "./core/extract.js";
+import { extractPrice, isNotFound, isUnavailable } from "./core/extract.js";
 import {
   ago,
   change,
@@ -61,19 +61,35 @@ function icon(name) {
 }
 
 /** Product photo, else the shop's icon, else its favicon, else a letter. */
+// which picture worked for each product, so a re-render doesn't fetch them again
+const pictures = new Map();
+
 function thumb(item, className = "thumb") {
-  const letter = el("span", { className: `${className} letter` }, host(item.url)[0]?.toUpperCase() ?? "");
-  const sources = [item.image, item.icon, `${new URL(item.url).origin}/favicon.ico`].filter(Boolean);
-  const img = el("img", { className, alt: "", referrerPolicy: "no-referrer", loading: "lazy" });
+  const letter = () => el("span", { className: `${className} letter` }, host(item.url)[0]?.toUpperCase() ?? "");
+  const sources = [...new Set([item.image, item.icon, `${new URL(item.url).origin}/favicon.ico`].filter(Boolean))];
+  const key = `${item.id} ${sources.join(" ")}`;
+  const known = pictures.get(key);
+  if (known === null) return letter();
+  const img = el("img", { className, alt: "", referrerPolicy: "no-referrer" });
+  const show = (src) => {
+    img.classList.toggle("logo", src !== item.image); // icons get padding
+    img.src = src;
+  };
+  if (known) {
+    show(known);
+    return img;
+  }
   let i = 0;
   const next = () => {
-    if (i >= sources.length) return img.replaceWith(letter);
-    img.classList.toggle("logo", sources[i] !== item.image); // icons get padding
-    img.src = sources[i++];
+    if (i >= sources.length) {
+      pictures.set(key, null);
+      return img.replaceWith(letter());
+    }
+    show(sources[i++]);
   };
   img.onerror = next;
   // a 1×1 or broken icon counts as missing
-  img.onload = () => img.naturalWidth < 8 && next();
+  img.onload = () => (img.naturalWidth < 8 ? next() : pictures.set(key, img.src));
   next();
   return img;
 }
@@ -367,8 +383,16 @@ $("watch").onclick = async () => {
     .executeScript({ target: { tabId: tab.id }, func: () => document.documentElement.outerHTML })
     .catch(() => []);
   const found = html && extractPrice(html, tab.url);
-  if (!found) return toast(html && isUnavailable(html) ? "This product is unavailable" : "No price on this page", html ? "warn" : "error");
-  await save([newItem(tab.url, found), ...items]);
+  if (!found) {
+    if (!html) return toast("Can't read this page", "error");
+    if (isNotFound(html)) return toast("Page not found", "warn");
+    if (/cannot be shipped|doesn.t ship to|does not ship to/i.test(html)) return toast("Doesn't ship to you", "warn");
+    if (isUnavailable(html)) return toast("This product is unavailable", "warn");
+    return toast("No price on this page", "warn");
+  }
+  const item = newItem(tab.url, found);
+  await save([item, ...(await load())]);
+  chrome.runtime.sendMessage({ type: "probe", id: item.id }).catch(() => {});
   toast("Watching");
   // asked last: the permission dialog may close the popup
   await allow([tab.url]);
