@@ -1,4 +1,2 @@
 * text=auto eol=lf
 *.png binary
-*.test.js export-ignore
-extension/core/dev.js export-ignore
