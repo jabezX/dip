@@ -51,7 +51,19 @@ export const isProductPage = (html) =>
     html,
   );
 
-const GONE = /out\s*_?of\s*_?stock|sold\s*_?out|discontinued|unavailable|not available|no longer available|cannot be shipped/i;
+const GONE =
+  /out\s*_?of\s*_?stock|sold\s*_?out|discontinued|unavailable|not available|no longer available|cannot be shipped|no featured offers/i;
+
+// A page that says it doesn't exist, even when the shop answers 200.
+const NOT_FOUND =
+  /page not found|not found|no longer exists|nicht gefunden|introuvable|no encontrad[ao]|non trovat[ao]|niet gevonden|nie znaleziono|não encontrad[ao]|\b404\b.{0,20}\b(error|page)\b|\b(error|page)\b.{0,20}\b404\b/i;
+
+/** @param {string} html */
+export function isNotFound(html) {
+  const title = decode(html.match(/<title[^>]*>([^<]*)/i)?.[1]) ?? "";
+  const h1 = text(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? "");
+  return NOT_FOUND.test(title) || NOT_FOUND.test(h1);
+}
 
 /**
  * Does the page say the product can't be bought right now?
@@ -63,9 +75,10 @@ export function isUnavailable(html) {
     return !/"availability"\s*:\s*"[^"]*(InStock|LimitedAvailability|PreOrder|OnlineOnly)/i.test(html);
   }
   if (GONE.test(metas(html)["product:availability"] ?? metas(html)["og:availability"] ?? "")) return true;
-  // an availability box that says so (Amazon's "Currently unavailable")
+  // an availability or buy box that says so (Amazon's "Currently unavailable")
   const body = visible(html);
-  for (const m of body.matchAll(/<[a-z0-9]+\b[^>]*\b(?:class|id)\s*=\s*["'][^"']*(?:availability|out-?of-?stock|sold-?out|stock-?status)[^"']*["'][^>]*>/gi)) {
+  if (/\bid="outOfStock"/.test(body)) return true;
+  for (const m of body.matchAll(/<[a-z0-9]+\b[^>]*\b(?:class|id)\s*=\s*["'][^"']*(?:availability|out-?of-?stock|sold-?out|stock-?status|buybox|buy-box)[^"']*["'][^>]*>/gi)) {
     if (GONE.test(text(body.slice(m.index + m[0].length, m.index + m[0].length + 500)).slice(0, 160))) return true;
   }
   return false;
@@ -83,7 +96,14 @@ export function extractPrice(html, url) {
   /** @returns {Extracted} */
   const done = (price, currency, source, available = null) => ({
     price,
-    currency: typeof currency === "string" && currency ? currency.toUpperCase() : null,
+    // some shops leave the currency out of the offer but name it elsewhere
+    currency:
+      typeof currency === "string" && currency
+        ? currency.toUpperCase()
+        : (meta["product:price:currency"] ??
+            meta["og:price:currency"] ??
+            html.match(/"(?:priceCurrency|currencyUnit|currencyCode)"\s*:\s*"([A-Z]{3})"/)?.[1] ??
+            null),
     title: decode(
       typeof name === "string" && name.trim() ? name : (meta["og:title"] ?? html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]),
     ),
@@ -118,7 +138,9 @@ export function extractPrice(html, url) {
   const micro = parsePrice(html.match(/itemprop\s*=\s*["']?price["']?(?=[\s>])[^>]*>([^<]+)</i)?.[1]);
   if (micro != null) return done(micro, meta["pricecurrency"], "data");
 
-  // 4. no structured data: read the price off the page
+  // 4. no structured data: read the price off the page, unless the page
+  // says it doesn't exist (its "price" would be some other product's)
+  if (isNotFound(html)) return null;
   const shown = shownPrice(html, url);
   return shown && done(shown.price, shown.currency, "guess");
 }
@@ -166,39 +188,103 @@ const PER_PERIOD = /^\s*(\/|per\b|a\b|each\b|every\b|p\.?\s?m\b)?\s*(mo\b|mth|mo
 const PLAN_BEFORE =
   /(\d+\s*[x×]\s*|payments?\s+of\s*|installments?\s+of\s*|monthly\s*(payment)?:?\s*|deposit:?\s*|save\s*(up to)?\s*|off\s*|shipping:?\s*|delivery:?\s*|was:?\s*|rrp:?\s*|list( price)?:?\s*)$/i;
 
+// Sections that hold other products.
+const ASIDE =
+  /<[a-z0-9]+\b[^>]*\b(?:class|id|data-testid|data-test|data-component|aria-label)\s*=\s*["']([^"']*(?:recommend|sponsor|similar[-_ ]?(?:items|products)|related[-_ ]?(?:items|products)|also[-_ ]?(?:bought|viewed|like)|you[-_ ]?(?:may|might)[-_ ]?(?:also|like)|upsell|cross-?sell|products?-?carousel)[^"']*)["']/gi;
+
 // ponytail: a guess, used only when a page has no structured data, and
 // marked as such ("guess") so a surprising result gets double-checked
 // (see record() in items.js). "$" is read as USD.
 function shownPrice(html, url) {
   const body = visible(html);
-  // Amazon pages are full of other prices (shipping tables, other sellers,
-  // payment plans): there, only the main price box counts.
-  const strict = url && /(^|\.)amazon\./.test(new URL(url).hostname) ? /coreprice|pricetopay|apex/i : null;
-  let fallback = null;
+  if (url && /(^|\.)amazon\./.test(new URL(url).hostname)) return amazonPrice(body);
+  // The product comes before "you may also like": nothing from the first
+  // recommendation or sponsored section on is this product's price.
+  const aside = [...body.matchAll(ASIDE)].find((m) => !/image|gallery|media|thumb|photo|zoom|hero/i.test(m[1]));
+  const main = aside ? body.slice(0, aside.index) : body;
+  const seen = [];
   const labelled =
     /<[a-z0-9]+\b[^>]*\b(?:class|id|data-testid|data-test|data-qa)\s*=\s*["']([^"']*price[^"']*)["'][^>]*>/gi;
-  for (const m of body.matchAll(labelled)) {
+  for (const m of main.matchAll(labelled)) {
     const label = m[1];
     if (NOT_THE_PRICE.test(label)) continue;
     const start = m.index + m[0].length;
-    const words = text(body.slice(start, start + 600));
-    const money = words.match(MONEY);
-    if (!money || money.index > 24) continue; // the number has to belong to this element
-    if (PER_PERIOD.test(words.slice(money.index + money[0].length, money.index + money[0].length + 20))) continue;
-    if (PLAN_BEFORE.test(words.slice(0, money.index))) continue;
-    const price = parsePrice(money[2] ?? money[3]);
-    if (price == null) continue;
-    const found = { price, currency: currencyCode(money[1] ?? money[4]) };
-    if (strict ? strict.test(label) : THE_PRICE.test(label)) return found;
-    fallback ??= found;
+    const found = money(text(main.slice(start, start + 600)));
+    if (!found) continue;
+    if (THE_PRICE.test(label)) return found;
+    seen.push(found);
   }
-  return strict ? null : fallback;
+  // no element names itself the price: only trust a page that shows one price
+  return new Set(seen.map((f) => f.price)).size === 1 ? seen[0] : null;
+}
+
+/** The amount at the start of `words`, unless it's a payment plan. */
+function money(words) {
+  const m = words.match(MONEY);
+  if (!m || m.index > 24) return null; // the number has to belong to this element
+  if (PER_PERIOD.test(words.slice(m.index + m[0].length, m.index + m[0].length + 20))) return null;
+  if (PLAN_BEFORE.test(words.slice(0, m.index))) return null;
+  const price = parsePrice(m[2] ?? m[3]);
+  return price == null ? null : { price, currency: currencyCode(m[1] ?? m[4]) };
+}
+
+// Amazon reuses its price classes everywhere: sponsored cards, other sellers,
+// shipping tables, payment plans. Only the main price boxes count.
+const AMAZON_BOXES = [
+  "corePriceDisplay_desktop_feature_div",
+  "corePrice_desktop",
+  "corePrice_feature_div",
+  "corePriceDisplay_mobile_feature_div",
+  "apex_desktop",
+  "apex_offerDisplay_desktop",
+  "price_inside_buybox",
+  "newBuyBoxPrice",
+  "priceblock_dealprice",
+  "priceblock_ourprice",
+];
+
+function amazonPrice(body) {
+  for (const id of AMAZON_BOXES) {
+    const at = body.indexOf(`id="${id}"`);
+    if (at < 0) continue;
+    const box = element(body, at);
+    // the price you pay, not a crossed-out "List Price" (a-text-price)
+    for (const m of box.matchAll(/<span\b[^>]*class="(a-price\b[^"]*)"[^>]*>\s*<span\b[^>]*class="a-offscreen"[^>]*>([^<]+)</g)) {
+      if (/a-text-price/.test(m[1])) continue;
+      const found = money(text(m[2]));
+      if (found) return found;
+    }
+    // the older layouts hold the bare amount
+    if (/^(price_inside_buybox|newBuyBoxPrice|priceblock_)/.test(id)) {
+      const found = money(text(box.replace(/^<[^>]*>/, "")));
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** The whole element whose opening tag contains position `at`. */
+function element(html, at) {
+  const start = html.lastIndexOf("<", at);
+  const name = html.slice(start + 1).match(/^[a-z0-9]+/i)?.[0];
+  if (!name) return "";
+  const tags = new RegExp(`<(/?)${name}\\b[^>]*>`, "gi");
+  tags.lastIndex = start;
+  let depth = 0;
+  for (let m; (m = tags.exec(html)); ) {
+    if (m[1]) depth--;
+    else if (!m[0].endsWith("/>")) depth++;
+    if (depth === 0) return html.slice(start, m.index + m[0].length);
+  }
+  return html.slice(start);
 }
 
 const currencyCode = (token) => (token in SYMBOLS ? SYMBOLS[token] : token);
 
 const visible = (html) => html.replace(/<(script|style|noscript|template)\b[\s\S]*?<\/\1>/gi, "");
-const text = (html) => decode(html.replace(/<[^>]*>/g, " ")) ?? "";
+// "349 .99", "352 . 45": shops print the cents in their own element
+const text = (html) =>
+  (decode(html.replace(/<[^>]*>/g, " ")) ?? "").replace(/(\d)\s+([.,])\s*(\d{2})(?!\d)/g, "$1$2$3");
 
 // ---------- pictures ----------
 
